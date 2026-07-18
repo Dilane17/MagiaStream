@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MagiaStream"
+version = "0.1.0"
+description = "CLI modulaire pour automatiser le téléchargement d'anime"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+	"playwright",
+	"typer[all]",
+	"rich",
+	"python-dotenv",
+	"tqdm",
+	"tenacity",
+]
+
+[project.scripts]
+magia = "magia_stream.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+include = ["voiranime_downloader*"]
+exclude = ["tests*"]

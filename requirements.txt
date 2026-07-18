@@ -1,0 +1,8 @@
+tqdm
+playwright
+
+typer[all]
+rich
+python-dotenv
+tqdm
+tenacity
