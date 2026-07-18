@@ -1,4 +1,5 @@
 # MagiaStream
+
 # MagiaStream
 
 MagiaStream est un outil CLI modulaire en Python 3.13+ destiné à automatiser la recherche et le téléchargement d'épisodes d'anime.
@@ -33,3 +34,17 @@ magia download --serie "NomDeSerie" --saison 1 --episode 1 --resolution 1080p
 
 - Vérifiez que `aria2c` est installé sur votre système (`aria2c --version`).
 - Ne committez jamais vos secrets : utilisez `.env` (non suivi) et votre `.env.example` pour la configuration.
+
+## Phase 1 — Configuration & Utils
+
+Créez un fichier `.env` local (ou copiez `.env.example`) et ajustez les valeurs si nécessaire. Exemple :
+
+```bash
+cp .env.example .env
+```
+
+Ensuite, vous pouvez afficher la configuration active :
+
+```bash
+magia config show
+```

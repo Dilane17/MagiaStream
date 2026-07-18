@@ -2,7 +2,7 @@
 
 - Logging configurable (RotatingFileHandler optionnel, JSON optionnel)
 - Retry decorator basé sur tenacity
-- safe_filename pour normaliser noms de fichier
+- Fonctions utilitaires pour fichiers
 """
 
 from __future__ import annotations
@@ -14,7 +14,12 @@ import re
 from pathlib import Path
 from typing import Callable, Any
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+    HAS_TENACITY = True
+except Exception:
+    HAS_TENACITY = False
+    # fallback: we'll implement a simple retry decorator below
 
 DEFAULT_LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
@@ -23,29 +28,26 @@ def setup_logging(level: int = logging.INFO, log_file: Path | None = None, json_
     """Configure le logging global.
 
     - `level`: niveau de logging
-    - `log_file`: si fourni, active la rotation journalière
+    - `log_file`: si fourni, active la rotation (max 5MB, 5 backups)
     - `json_format`: si True, les logs sont formatés en JSON simple
     """
 
     root = logging.getLogger()
     root.setLevel(level)
 
-    # handler de console
+    # console handler
     console_handler = logging.StreamHandler()
-    if json_format:
-        console_handler.setFormatter(JsonLogFormatter())
-    else:
-        console_handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
+    console_handler.setFormatter(JsonLogFormatter() if json_format else logging.Formatter(DEFAULT_LOG_FORMAT))
     root.addHandler(console_handler)
 
     if log_file:
-        file_handler = logging.handlers.RotatingFileHandler(
-            filename=str(log_file), maxBytes=10 * 1024 * 1024, backupCount=5
-        )
-        if json_format:
-            file_handler.setFormatter(JsonLogFormatter())
-        else:
-            file_handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
+        # ensure directory exists for log file
+        try:
+            ensure_directory(log_file.parent)
+        except Exception:
+            pass
+        file_handler = logging.handlers.RotatingFileHandler(filename=str(log_file), maxBytes=5 * 1024 * 1024, backupCount=5)
+        file_handler.setFormatter(JsonLogFormatter() if json_format else logging.Formatter(DEFAULT_LOG_FORMAT))
         root.addHandler(file_handler)
 
 
@@ -62,32 +64,83 @@ class JsonLogFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-def tenacity_retry(**kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Retourne un décorateur `retry` basé sur tenacity avec paramètres raisonnables.
+def tenacity_retry(retries: int = 3, min_wait: int = 1, max_wait: int = 10, retry_exceptions: Any = Exception) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Décorateur configurable; utilise `tenacity` si disponible sinon un fallback.
 
-    Usage:
-    @tenacity_retry(stop_max_attempts=5)
-    def foo(...):
-        ...
+    - `retries`: nombre maximal de tentatives
+    - `min_wait` / `max_wait`: attente exponentielle
+    - `retry_exceptions`: exceptions à retenter
     """
 
-    stop = kwargs.pop("stop", stop_after_attempt(3))
-    wait = kwargs.pop("wait", wait_exponential(multiplier=1, min=1, max=10))
-    retry_on = kwargs.pop("retry", retry_if_exception_type(Exception))
+    if HAS_TENACITY:
+        stop = stop_after_attempt(retries)
+        wait = wait_exponential(multiplier=1, min=min_wait, max=max_wait)
+        retry_on = retry_if_exception_type(retry_exceptions)
+
+        def _decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+            return retry(stop=stop, wait=wait, retry=retry_on)(fn)
+
+        return _decorator
+
+    # simple fallback implementation
+    import time
+    import functools
 
     def _decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
-        return retry(stop=stop, wait=wait, retry=retry_on)(fn)
+        @functools.wraps(fn)
+        def _wrapped(*args: Any, **kwargs: Any) -> Any:
+            attempt = 0
+            while True:
+                try:
+                    return fn(*args, **kwargs)
+                except retry_exceptions as exc:
+                    attempt += 1
+                    if attempt > retries:
+                        raise
+                    sleep_for = min(max_wait, min_wait * (2 ** (attempt - 1)))
+                    time.sleep(sleep_for)
+
+        return _wrapped
 
     return _decorator
 
 
-def safe_filename(name: str, max_length: int = 200) -> str:
-    """Retourne un nom de fichier sûr en supprimant caractères invalides.
+def sanitize_filename(name: str, max_length: int = 200) -> str:
+    """Sanitize a filename for safe use on most filesystems.
 
-    Règles : remplace les espaces par des underscores, garde alphanumériques, '-', '_', '.'
+    Replace whitespace by underscore and remove unsafe characters.
     """
 
     name = name.strip()
     name = re.sub(r"\s+", "_", name)
     name = re.sub(r"[^\w\-.]", "", name)
     return name[:max_length]
+
+
+def get_file_size(path: Path) -> int:
+    """Retourne la taille du fichier en octets, 0 si absent."""
+
+    try:
+        return path.stat().st_size
+    except Exception:
+        return 0
+
+
+def human_readable_size(num: int, suffix: str = "B") -> str:
+    """Convertit une taille en octets vers une représentation lisible."""
+
+    for unit in ["", "K", "M", "G", "T", "P"]:
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f}Y{suffix}"
+
+
+def ensure_directory(path: Path) -> Path:
+    """Crée le dossier cible si nécessaire et le retourne.
+
+    Utilisé par le downloader pour s'assurer que le répertoire de sortie existe.
+    """
+
+    path.mkdir(parents=True, exist_ok=True)
+    return path

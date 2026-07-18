@@ -1,4 +1,4 @@
-"""Orchestration du téléchargement des épisodes."""
+"""Orchestration du téléchargement des épisodes (stub)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from voiranime_downloader.config import Config
-from voiranime_downloader.exceptions import DownloadError
-from voiranime_downloader.scraper import Scraper
-from voiranime_downloader.utils import ensure_directory
+from magia_stream.config import Config
+from magia_stream.exceptions import DownloadError
+from magia_stream.scraper import Scraper
+from magia_stream.utils import ensure_directory
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class Downloader:
         episode: int,
         resolution: Optional[str] = None,
     ) -> Path:
-        """Prépare le téléchargement et retourne le chemin cible."""
+        """Prépare le téléchargement et retourne le chemin cible (simulé)."""
 
         try:
             metadata = self.scraper.search_episode(serie=serie, saison=saison, episode=episode)

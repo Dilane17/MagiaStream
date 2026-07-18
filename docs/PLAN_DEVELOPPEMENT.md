@@ -58,7 +58,7 @@ Document pragmatique et phasé pour achever et produire une v1 de `MagiaStream`.
 
 Chaque phase liste tâches, priorités et edge-cases à anticiper. Dépendances = phases précédentes.
 
-### Phase 0 — Finalisation setup (priorité: critique)
+### Phase 0 — Finalisation setup (priorité: critique) — TERMINÉ
 
 Objectif : rendre le projet exécutable localement, reproductible et versionnable.
 Tâches :
@@ -73,7 +73,7 @@ Tâches :
 Edge-cases : utilisateur sans `aria2c`, sans droits root, version Python <3.13.
 Dépendances: none.
 
-### Phase 1 — Configuration & Utils (priorité: haute)
+### Phase 1 — Configuration & Utils (priorité: haute) — TERMINÉ (2026-07-18)
 
 Objectif : robustifier config et utilitaires transverses.
 Tâches :
@@ -93,6 +93,11 @@ Objectif : implémenter le cœur du scraping robuste avec Playwright.
 Tâches :
 
 - Créer module `browser.py` encapsulant Playwright (sync ou async — choisir async si besoin de scalabilité).
+- Créer module `browser.py` encapsulant Playwright (sync ou async — choisir async si besoin de scalabilité).
+- Sub-tâches découvertes lors de l'audit :
+  - Ajouter une couche `network_monitor` pour intercepter requêtes et extraire `.m3u8`/tokens.
+  - Implémenter une stratégie de backoff et gestion des challenges JS (rejouer scripts dans le contexte Playwright).
+  - Écrire tests unitaires pour `Scraper` en mockant Playwright (utiliser pytest + pytest-asyncio + respx/vcrpy).
 - Patterns : session persistante, reuse browser contexts, options headless, user-agent, proxy support.
 - Techniques anti-bot : randomisation d'user-agent, injection de waits/stall, utilisation de `stealth` script si nécessaire.
 - Navigation sur `https://voir-anime.to` : découvrir structure HTML, pages séries, pages épisodes.

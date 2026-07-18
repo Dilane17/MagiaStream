@@ -13,3 +13,7 @@ class ScraperError(MagiaStreamError):
 
 class DownloadError(MagiaStreamError):
     """Erreur liée à la préparation ou à l'exécution du téléchargement."""
+
+
+class ConfigError(MagiaStreamError):
+    """Erreur levée lors de la validation de la configuration."""

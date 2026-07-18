@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, MISSING
 from pathlib import Path
-from typing import Optional
+from typing import Dict
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - fallback when python-dotenv is not installed
+    def load_dotenv(*_args, **_kwargs):
+        return None
+
+from magia_stream.exceptions import ConfigError
 
 
 load_dotenv()
@@ -21,55 +27,106 @@ class Config:
     """
 
     BASE_URL: str = "https://voir-anime.to"
-    output_dir: Path = field(default_factory=lambda: Path.cwd() / "downloads")
-    temp_dir: Path = field(default_factory=lambda: Path.cwd() / ".tmp")
-    user_agent: str = (
+    OUTPUT_DIR: Path = field(default_factory=lambda: Path.cwd() / "downloads")
+    TEMP_DIR: Path = field(default_factory=lambda: Path.cwd() / ".tmp")
+    USER_AGENT: str = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     )
-    timeout_seconds: int = 30
-    aria2c_path: str = "aria2c"
-    playwright_browsers: str = "chromium"
-    log_level: str = "INFO"
-    log_json: bool = False
-    aria2c_opts: str = "-x 16 -s 16"
+    TIMEOUT_SECONDS: int = 30
+    ARIA2C_PATH: str = "aria2c"
+    PLAYWRIGHT_BROWSERS: str = "chromium"
+    LOG_LEVEL: str = "INFO"
+    LOG_JSON: bool = False
+    ARIA2C_OPTS: str = "-x 16 -s 16"
+    MAX_RETRIES: int = 3
 
     @classmethod
     def from_env(cls) -> "Config":
         """Construit une config à partir des variables d'environnement.
 
-        Valide sommairement les types et retourne une instance.
+        Lève `ConfigError` si des valeurs critiques sont manquantes ou invalides.
         """
 
-        def get(key: str, default: Optional[str] = None) -> Optional[str]:
-            return os.getenv(key, default)
+        # fetch defaults from dataclass fields to avoid potential descriptor issues
+        fields = getattr(cls, "__dataclass_fields__", {})
 
-        base = get("BASE_URL", cls.BASE_URL)
-        output = Path(get("OUTPUT_DIR", str(cls.output_dir)))
-        temp = Path(get("TEMP_DIR", str(cls.temp_dir)))
-        user_agent = get("USER_AGENT", cls.user_agent)
-        timeout = int(get("TIMEOUT_SECONDS", str(cls.timeout_seconds)))
-        aria2c_path = get("ARIA2C_PATH", cls.aria2c_path)
-        playwright_browsers = get("PLAYWRIGHT_BROWSERS", cls.playwright_browsers)
-        log_level = get("LOG_LEVEL", cls.log_level)
-        log_json = get("LOG_JSON", "false").lower() in ("1", "true", "yes")
-        aria2c_opts = get("ARIA2C_OPTS", cls.aria2c_opts)
+        def _default(name: str, fallback: str) -> str:
+            if name in fields:
+                f = fields[name]
+                if f.default is not MISSING:
+                    return f.default
+                if getattr(f, "default_factory", MISSING) is not MISSING:
+                    try:
+                        return f.default_factory()
+                    except Exception:
+                        return fallback
+            return fallback
+
+        try:
+            base_default = _default("BASE_URL", cls.BASE_URL)
+            base = os.getenv("BASE_URL", base_default)
+            if not isinstance(base, str) or not base.startswith("http"):
+                raise ConfigError("BASE_URL invalide")
+
+            output_default = _default("OUTPUT_DIR", str(cls.OUTPUT_DIR))
+            temp_default = _default("TEMP_DIR", str(cls.TEMP_DIR))
+
+            output = Path(os.getenv("OUTPUT_DIR", str(output_default)))
+            temp = Path(os.getenv("TEMP_DIR", str(temp_default)))
+            user_agent = os.getenv("USER_AGENT", _default("USER_AGENT", cls.USER_AGENT))
+            timeout = int(os.getenv("TIMEOUT_SECONDS", str(_default("TIMEOUT_SECONDS", cls.TIMEOUT_SECONDS))))
+            aria2c_path = os.getenv("ARIA2C_PATH", _default("ARIA2C_PATH", cls.ARIA2C_PATH))
+            playwright_browsers = os.getenv("PLAYWRIGHT_BROWSERS", _default("PLAYWRIGHT_BROWSERS", cls.PLAYWRIGHT_BROWSERS))
+            log_level = os.getenv("LOG_LEVEL", _default("LOG_LEVEL", cls.LOG_LEVEL))
+            log_json = os.getenv("LOG_JSON", str(_default("LOG_JSON", cls.LOG_JSON))).lower() in ("1", "true", "yes")
+            aria2c_opts = os.getenv("ARIA2C_OPTS", _default("ARIA2C_OPTS", cls.ARIA2C_OPTS))
+            max_retries = int(os.getenv("MAX_RETRIES", str(_default("MAX_RETRIES", cls.MAX_RETRIES))))
+
+        except ValueError as exc:
+            raise ConfigError(f"Erreur de parsing de la config: {exc}") from exc
 
         cfg = cls(
-            BASE_URL=base,  # type: ignore[arg-type]
-            output_dir=output,
-            temp_dir=temp,
-            user_agent=user_agent,
-            timeout_seconds=timeout,
-            aria2c_path=aria2c_path,
-            playwright_browsers=playwright_browsers,
-            log_level=log_level,
-            log_json=log_json,
-            aria2c_opts=aria2c_opts,
+            BASE_URL=base,
+            OUTPUT_DIR=output,
+            TEMP_DIR=temp,
+            USER_AGENT=user_agent,
+            TIMEOUT_SECONDS=timeout,
+            ARIA2C_PATH=aria2c_path,
+            PLAYWRIGHT_BROWSERS=playwright_browsers,
+            LOG_LEVEL=log_level,
+            LOG_JSON=log_json,
+            ARIA2C_OPTS=aria2c_opts,
+            MAX_RETRIES=max_retries,
         )
 
         # validations simples
-        if not cfg.BASE_URL.startswith("http"):
-            raise ValueError("BASE_URL doit commencer par http ou https")
+        if not cfg.OUTPUT_DIR:
+            raise ConfigError("OUTPUT_DIR est requis")
 
         return cfg
+
+    def to_dict(self) -> Dict[str, str]:
+        """Retourne la config sous forme de dict simple pour affichage."""
+
+        return {
+            "BASE_URL": self.BASE_URL,
+            "OUTPUT_DIR": str(self.OUTPUT_DIR),
+            "TEMP_DIR": str(self.TEMP_DIR),
+            "USER_AGENT": self.USER_AGENT,
+            "TIMEOUT_SECONDS": str(self.TIMEOUT_SECONDS),
+            "ARIA2C_PATH": self.ARIA2C_PATH,
+            "PLAYWRIGHT_BROWSERS": self.PLAYWRIGHT_BROWSERS,
+            "LOG_LEVEL": self.LOG_LEVEL,
+            "LOG_JSON": str(self.LOG_JSON),
+            "ARIA2C_OPTS": self.ARIA2C_OPTS,
+            "MAX_RETRIES": str(self.MAX_RETRIES),
+        }
+
+    def save_to_env(self, path: Path) -> None:
+        """Écrit les variables de configuration dans un fichier .env (optionnel)."""
+
+        with path.open("w", encoding="utf8") as fh:
+            for k, v in self.to_dict().items():
+                fh.write(f"{k}={v}\n")
+        return None

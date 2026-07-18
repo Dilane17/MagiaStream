@@ -1,12 +1,12 @@
-"""Accès réseau et extraction des informations de streaming."""
+"""Accès réseau et extraction des informations de streaming (stub)."""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from voiranime_downloader.config import Config
-from voiranime_downloader.exceptions import ScraperError
+from magia_stream.config import Config
+from magia_stream.exceptions import ScraperError
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,10 @@ class Scraper:
     config: Config
 
     def search_episode(self, serie: str, saison: int, episode: int) -> dict[str, str]:
-        """Retourne un squelette de données pour un épisode donné."""
+        """Retourne un squelette de données pour un épisode donné (stub).
+
+        Remplacer par une implémentation Playwright dans Phase 2.
+        """
 
         logger.debug(
             "Recherche d'épisode: serie=%s saison=%s episode=%s",
