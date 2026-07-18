@@ -89,6 +89,8 @@ Tâches :
 Edge-cases : chemins non écriturables, quotas disque, collisions de noms de fichiers.
 Dépendances: Phase 0.
 
+**Statut actuel** : Phase 1 marquée comme terminée. Tests unitaires basiques ajoutés et passent (7 tests). Playwright téléchargé localement par l'utilisateur ; l'installation système via `--with-deps` nécessite les droits root et a échoué automatiquement dans le script lorsque `apt-get` ou `dnf` n'était pas disponible. Le projet est prêt pour Phase 2 dès que vous confirmez.
+
 ### Phase 2 — Scraper core (priorité: critique)
 
 Objectif : implémenter le cœur du scraping robuste avec Playwright.

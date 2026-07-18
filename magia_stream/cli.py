@@ -55,7 +55,7 @@ if HAS_TYPER:
     @app.callback(invoke_without_command=True)
     def main(
         ctx: typer.Context,
-        verbose: bool = typer.Option(False, "--verbose", "Augmente le niveau de log."),
+        verbose: bool = typer.Option(False, "--verbose", help="Augmente le niveau de log."),
         config_file: Optional[str] = typer.Option(None, "--config-file", help="Chemin vers un .env personnalisé."),
     ) -> None:
         """Contexte global de l'application. Configure logging et charge la config."""

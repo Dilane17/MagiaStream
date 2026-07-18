@@ -37,11 +37,23 @@ magia download --serie "NomDeSerie" --saison 1 --episode 1 --resolution 1080p
 - Ne committez jamais vos secrets : utilisez `.env` (non suivi) et votre `.env.example` pour la configuration.
 
 ## Phase 1 — Configuration & Utils
+Phase 1 — Terminé (2026-07-18)
 
-Créez un fichier `.env` local (ou copiez `.env.example`) et ajustez les valeurs si nécessaire. Exemple :
+La configuration centrale, les utilitaires et le CLI de base sont en place.
+Avant d'attaquer la Phase 2 (scraping), vérifiez que vous avez bien exécuté :
 
 ```bash
-cp .env.example .env
+# activer l'environnement virtuel
+source venv/bin/activate
+
+# installer dépendances Python
+pip install -r requirements.txt
+
+# installer les navigateurs Playwright si nécessaire
+playwright install chromium
+
+# afficher l'aide du CLI
+python -m magia_stream.cli --help
 ```
 
 Ensuite, vous pouvez afficher la configuration active :
