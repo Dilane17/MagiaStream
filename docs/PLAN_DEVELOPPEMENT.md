@@ -75,6 +75,8 @@ Dépendances: none.
 
 ### Phase 1 — Configuration & Utils (priorité: haute) — TERMINÉ (2026-07-18)
 
+Note: Phase 1 est marquée comme terminée. Le projet a subi des corrections de packaging, nettoyage legacy et ajout de tests unitaires de base. Ready for Phase 2 after fixes.
+
 Objectif : robustifier config et utilitaires transverses.
 Tâches :
 

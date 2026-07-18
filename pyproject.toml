@@ -24,5 +24,5 @@ magia = "magia_stream.cli:main"
 package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
-include = ["voiranime_downloader*"]
+include = ["magia_stream*"]
 exclude = ["tests*"]

@@ -40,3 +40,8 @@ Thumbs.db
 downloads/
 *.sqlite
 venv/
+.env.local
+.env.test
+.cache/
+/.venv
+.playwright/

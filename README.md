@@ -17,13 +17,14 @@ Manuellement :
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-playwright install --with-deps chromium
+# Optional: install Playwright browsers (no sudo required inside venv)
+playwright install chromium
 ```
 
 ## Première exécution
 
 ```bash
-# Affiche l'aide
+# Affiche l'aide (après activation du venv)
 magia --help
 
 # Exemple de téléchargement d'un épisode (simulé pour l'instant)
