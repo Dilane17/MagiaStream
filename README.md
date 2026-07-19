@@ -37,6 +37,7 @@ magia download --serie "NomDeSerie" --saison 1 --episode 1 --resolution 1080p
 - Ne committez jamais vos secrets : utilisez `.env` (non suivi) et votre `.env.example` pour la configuration.
 
 ## Phase 1 — Configuration & Utils
+
 Phase 1 — Terminé (2026-07-18)
 
 La configuration centrale, les utilitaires et le CLI de base sont en place.

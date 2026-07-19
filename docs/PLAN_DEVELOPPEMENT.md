@@ -35,6 +35,13 @@ Document pragmatique et phasé pour achever et produire une v1 de `MagiaStream`.
 - `pyproject.toml` a `dependencies = []` (les dépendances ne sont pas inscrites dans `pyproject`), à corriger si on veut publier.
 - README mentionne `voiranime` mais le nom du package est `MagiaStream` — cohérence mineure à ajuster.
 
+### Bilan d'exécution au 2026-07-19
+
+- Terminé : `Phase 0`, `Phase 1`, `Phase 2`, `Phase 3`, `Phase 4`, `Phase 5`, `Phase 6`.
+- En cours : `Phase 7` (Futures fonctionnalités Optionnelles).
+- Non démarré : `Phase 7`.
+- Point important : Le pipeline de téléchargement et l'orchestration industrielle (mode batch JSON, commandes list/search/cleanup, partage de contexte Playwright, rattrapage d'erreurs) sont désormais 100% opérationnels.
+
 ---
 
 ## Observations techniques et recommandations rapides
@@ -89,9 +96,9 @@ Tâches :
 Edge-cases : chemins non écriturables, quotas disque, collisions de noms de fichiers.
 Dépendances: Phase 0.
 
-**Statut actuel** : Phase 1 marquée comme terminée. Tests unitaires basiques ajoutés et passent (7 tests). Playwright téléchargé localement par l'utilisateur ; l'installation système via `--with-deps` nécessite les droits root et a échoué automatiquement dans le script lorsque `apt-get` ou `dnf` n'était pas disponible. Le projet est prêt pour Phase 2 dès que vous confirmez.
+**Statut actuel** : Phase 2 terminée. Le scraper, le cache et la navigation Wistoria/voir-anime.to sont validés, avec cache hit confirmé sur deux passes consécutives.
 
-### Phase 2 — Scraper core (priorité: critique)
+### Phase 2 — Scraper core (priorité: critique) — TERMINÉ
 
 Objectif : implémenter le cœur du scraping robuste avec Playwright.
 Tâches :
@@ -113,7 +120,7 @@ Tâches :
 Edge-cases : Cloudflare/anti-bot (JS challenge), pages dynamiques chargées via XHR, pagination infinie, redirections.
 Dépendances: Phase 1.
 
-### Phase 3 — Extraction des flux vidéo (priorité: élevée)
+### Phase 3 — Extraction des flux vidéo (priorité: élevée) — TERMINÉ
 
 Objectif : extraire les URLs de flux (m3u8 / mp4) depuis pages/iframes et gérer anti-bot.
 Tâches :
@@ -127,7 +134,7 @@ Tâches :
 Edge-cases : liens temporaires (signed URLs), fragments chiffrés, tokens expirants, CORS, redirections 302.
 Dépendances: Phase 2.
 
-### Phase 4 — Downloader (priorité: élevée)
+### Phase 4 — Downloader (priorité: élevée) — TERMINÉ
 
 Objectif : fiabiliser le téléchargement via `aria2c` avec reprise et multi-connexions.
 Tâches :
@@ -141,7 +148,9 @@ Tâches :
 Edge-cases : quotas de connexion, serveurs limitant shards, fichiers incomplets, DRM/HLS chiffré.
 Dépendances: Phase 3, Phase 1.
 
-### Phase 5 — CLI avancée (priorité: moyenne)
+**Statut actuel** : TERMINÉ. Le downloader propage désormais les en-têtes navigateur, parse les manifestes HLS via Python pour contourner les erreurs 403, télécharge les segments manquants via aria2c, gère la reprise locale intelligente (skip), et concatène via ffmpeg sans ré-encodage.
+
+### Phase 5 — CLI avancée (priorité: moyenne) — TERMINÉ
 
 Objectif : rendre le CLI complet et ergonomique pour workflows courants.
 Tâches :
@@ -154,7 +163,9 @@ Tâches :
 Edge-cases : gestion des interruptions (SIGINT), verrouillage de dossier pour éviter écritures concurrentes.
 Dépendances: Phase 4.
 
-### Phase 6 — Gestion erreurs, tests, packaging (priorité: haute)
+**Statut actuel** : TERMINÉ. Le CLI dispose désormais des commandes d'utilité (list, search, cleanup) et d'un orchestrateur `batch` lisant du JSON avec gestion de contexte Playwright partagé, tolérance aux pannes et interruptions propres.
+
+### Phase 6 — Gestion erreurs, tests, packaging (priorité: haute) — TERMINÉ
 
 Objectif : durcir la solution et rendre le build repoducible.
 Tâches :
@@ -167,7 +178,9 @@ Tâches :
 Edge-cases : secrets exposés dans logs, tests flakys à cause de JS/temps réseau.
 Dépendances: Phases 0–5.
 
-### Phase 7 — Features futures (priorité: basse)
+**Statut actuel** : TERMINÉ. Le projet dispose d'un packaging PEP 621 (Hatchling), d'un typage Mypy strict, d'un formatage Ruff, de tests automatisés (Pytest avec Mocking), et d'une pipeline CI/CD GitHub Actions pour garantir sa pérennité.
+
+### Phase 7 — Features futures (priorité: basse) — EN COURS
 
 Objectif : roadmap pour évolutions non bloquantes.
 Tâches :

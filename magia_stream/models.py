@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
@@ -17,8 +17,10 @@ class Episode:
     title: Optional[str] = None
     page_url: Optional[str] = None
     stream_url: Optional[str] = None
+    raw_url: Optional[str] = None
     resolution: Optional[str] = None
     output_path: Optional[Path] = None
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

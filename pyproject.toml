@@ -1,28 +1,39 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "MagiaStream"
+name = "magiastream"
 version = "0.1.0"
-description = "CLI modulaire pour automatiser le téléchargement d'anime"
+description = "CLI modulaire et industriel pour l'orchestration et le téléchargement de flux HLS."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
-	"playwright",
-	"typer[all]",
-	"rich",
-	"python-dotenv",
-	"tqdm",
-	"tenacity",
+    "typer[all]>=0.9.0",
+    "rich>=13.0.0",
+    "playwright>=1.40.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0"
 ]
 
 [project.scripts]
-magia = "magia_stream.cli:main"
+magia = "magia_stream.cli:run"
 
-[tool.setuptools]
-package-dir = {"" = "."}
+[tool.hatch.build.targets.wheel]
+packages = ["magia_stream"]
 
-[tool.setuptools.packages.find]
-include = ["magia_stream*"]
-exclude = ["tests*"]
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

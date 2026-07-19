@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional, List
+from typing import List, Optional
 
 try:
     import typer  # type: ignore
+
     HAS_TYPER = True
 except Exception:
     typer = None  # type: ignore
@@ -16,9 +17,16 @@ except Exception:
 try:
     from rich.console import Console
 except Exception:
-    class Console:  # pragma: no cover - fallback
+
+    class FallbackConsole:  # pragma: no cover - fallback
         def print(self, *args, **kwargs):
             print(*args)
+
+    Console = FallbackConsole  # type: ignore
+
+
+import os
+from pathlib import Path
 
 from magia_stream.config import Config
 from magia_stream.downloader import Downloader
@@ -26,6 +34,9 @@ from magia_stream.scraper import Scraper
 from magia_stream.utils import setup_logging
 
 app = typer.Typer(help="CLI MagiaStream pour orchestrer le téléchargement d'épisodes.") if HAS_TYPER else None
+config_app = typer.Typer() if HAS_TYPER else None
+if HAS_TYPER:
+    app.add_typer(config_app, name="config")  # type: ignore
 console = Console()
 logger = logging.getLogger(__name__)
 
@@ -52,7 +63,8 @@ def _configure_global(verbose: bool, config_file: Optional[str]) -> Config:
 
 
 if HAS_TYPER:
-    @app.callback(invoke_without_command=True)
+
+    @app.callback(invoke_without_command=True)  # type: ignore
     def main(
         ctx: typer.Context,
         verbose: bool = typer.Option(False, "--verbose", help="Augmente le niveau de log."),
@@ -65,100 +77,425 @@ if HAS_TYPER:
 
 
 if HAS_TYPER:
-    @app.command()
+
+    @app.command()  # type: ignore
     def download(
         ctx: typer.Context,
         serie: str = typer.Option(..., "--serie", help="Nom de la série à télécharger."),
         saison: int = typer.Option(1, "--saison", min=1, help="Numéro de saison."),
-        episode: int = typer.Option(..., "--episode", min=1, help="Numéro d'épisode."),
+        episode: Optional[int] = typer.Option(None, "--episode", min=1, help="Numéro d'épisode."),
+        all_episodes: bool = typer.Option(False, "--all", help="Télécharge tous les épisodes."),
+        range_episodes: Optional[str] = typer.Option(None, "--range", help="Plage d'épisodes, ex: 1-5"),
         resolution: Optional[str] = typer.Option(
             None,
             "--resolution",
             help="Résolution cible, par exemple 720p ou 1080p.",
         ),
+        dry_run: bool = typer.Option(False, "--dry-run", help="Ne fait que simuler la résolution de l'épisode."),
+        trace: bool = typer.Option(False, "--trace", help="Affiche les URLs visitées et les requêtes captées."),
     ) -> None:
-        """Télécharge un épisode à partir des paramètres fournis."""
+        """Télécharge un épisode ou une saison à partir des paramètres fournis."""
 
         cfg: Config = ctx.obj or Config.from_env()
         scraper = Scraper(config=cfg)
-        downloader = Downloader(config=cfg, scraper=scraper)
+        downloader = Downloader(aria2c_path=cfg.ARIA2C_PATH, extra_opts=cfg.ARIA2C_OPTS)
+
+        episodes_to_download: List[int] = []
+
+        if all_episodes:
+            console.print(f"[cyan]Découverte des épisodes pour {serie} S{saison}...[/cyan]")
+            found = scraper.get_episodes_list(serie=serie, saison=saison, trace=trace)
+            if not found:
+                console.print(f"[red]Aucun épisode trouvé pour la série {serie}.[/red]")
+                raise typer.Exit(code=2)
+            episodes_to_download = found
+            console.print(f"[green]Épisodes trouvés : {found}[/green]")
+        elif range_episodes:
+            try:
+                parts = range_episodes.split("-")
+                if len(parts) == 2:
+                    start, end = int(parts[0]), int(parts[1])
+                    episodes_to_download = list(range(start, end + 1))
+                else:
+                    episodes_to_download = [int(p.strip()) for p in range_episodes.split(",")]
+            except Exception:
+                console.print("[red]Format de --range invalide. Utilisez '1-5' ou '1, 2, 3'.[/red]")
+                raise typer.Exit(code=2)
+        elif episode is not None:
+            episodes_to_download = [episode]
+        else:
+            console.print("[red]Vous devez spécifier --episode, --all, ou --range.[/red]")
+            raise typer.Exit(code=2)
 
         try:
-            result = downloader.download_episode(
-                serie=serie,
-                saison=saison,
-                episode=episode,
-                resolution=resolution,
-            )
-        except Exception as exc:  # pragma: no cover - remonte au CLI
-            logger.exception("Échec du téléchargement")
+            for ep_num in episodes_to_download:
+                console.print(f"\n[bold cyan]Traitement de l'épisode {ep_num}[/bold cyan]")
+                try:
+                    ep = scraper.search_episode(
+                        serie=serie, saison=saison, episode=ep_num, resolution=resolution or "1080p", trace=trace
+                    )
+                except Exception as exc:
+                    console.print(f"[red]Erreur:[/red] impossible de résoudre l'épisode {ep_num}: {exc}")
+                    continue
+
+                if not ep or not getattr(ep, "stream_url", None):
+                    console.print(f"[red]Aucun flux trouvé pour {serie} S{saison}E{ep_num}.[/red]")
+                    continue
+
+                if dry_run:
+                    if trace:
+                        console.print(
+                            f"[yellow]Trace:[/yellow] page_url={ep.page_url} stream_url={ep.stream_url} raw_url={getattr(ep, 'raw_url', None)}"
+                        )
+                    console.print(f"[yellow]Dry-run:[/yellow] {ep}")
+                    continue
+
+                out_dir = Path(cfg.OUTPUT_DIR) / serie
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_name = f"S{saison:02d}E{ep_num:02d}.mp4"
+                output_path = str(out_dir / out_name)
+
+                ret = downloader.download_stream(ep.stream_url, output_path, headers=ep.headers)  # type: ignore
+                if ret != 0:
+                    console.print(f"[red]aria2c a échoué (code={ret}) sur l'épisode {ep_num}[/red]")
+                    continue
+
+                console.print(f"[green]Téléchargement terminé :[/green] {output_path}")
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interruption par l'utilisateur. Arrêt du batch.[/yellow]")
+            raise typer.Exit(code=130)
+        except Exception as exc:  # pragma: no cover
+            logger.exception("Échec du batch")
             raise typer.Exit(code=1) from exc
 
-        console.print(f"[green]Téléchargement terminé :[/green] {result}")
+        console.print("\n[bold green]Processus terminé.[/bold green]")
 else:
-    def download_fallback(argv: List[str]) -> None:
-        """Fallback minimal pour 'download' si `typer` n'est pas installé.
 
-        Supporte: --serie, --saison, --episode, --resolution (simple parsing).
-        """
+    def download_fallback(argv: List[str]) -> None:
+        """Fallback minimal pour 'download' si `typer` n'est pas installé."""
 
         import argparse
 
         parser = argparse.ArgumentParser(prog="magia download")
         parser.add_argument("--serie", required=True)
         parser.add_argument("--saison", type=int, default=1)
-        parser.add_argument("--episode", type=int, required=True)
+        parser.add_argument("--episode", type=int, default=None)
+        parser.add_argument("--all", action="store_true")
+        parser.add_argument("--range", default=None)
         parser.add_argument("--resolution", default=None)
         args = parser.parse_args(argv)
 
         cfg = _configure_global(verbose=False, config_file=None)
         scraper = Scraper(config=cfg)
-        downloader = Downloader(config=cfg, scraper=scraper)
+        downloader = Downloader(aria2c_path=cfg.ARIA2C_PATH, extra_opts=cfg.ARIA2C_OPTS)
+
+        episodes_to_download: List[int] = []
+        if args.all:
+            episodes_to_download = scraper.get_episodes_list(serie=args.serie, saison=args.saison)
+            if not episodes_to_download:
+                console.print(f"Aucun épisode trouvé pour {args.serie}.")
+                sys.exit(2)
+        elif args.range:
+            parts = args.range.split("-")
+            if len(parts) == 2:
+                episodes_to_download = list(range(int(parts[0]), int(parts[1]) + 1))
+            else:
+                episodes_to_download = [int(p.strip()) for p in args.range.split(",")]
+        elif args.episode is not None:
+            episodes_to_download = [args.episode]
+        else:
+            console.print("Spécifiez --episode, --all ou --range.")
+            sys.exit(2)
 
         try:
-            result = downloader.download_episode(
-                serie=args.serie, saison=args.saison, episode=args.episode, resolution=args.resolution
-            )
-        except Exception as exc:
+            for ep_num in episodes_to_download:
+                try:
+                    ep = scraper.search_episode(
+                        serie=args.serie, saison=args.saison, episode=ep_num, resolution=args.resolution or "1080p"
+                    )
+                except Exception as exc:
+                    console.print(f"Erreur sur l'épisode {ep_num}: {exc}")
+                    continue
+
+                if not ep or not getattr(ep, "stream_url", None):
+                    console.print(f"Aucun flux trouvé pour {args.serie} S{args.saison}E{ep_num}")
+                    continue
+
+                out_dir = Path(cfg.OUTPUT_DIR) / args.serie
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_name = f"S{args.saison:02d}E{ep_num:02d}.mp4"
+                output_path = str(out_dir / out_name)
+
+                ret = downloader.download_stream(ep.stream_url, output_path, headers=ep.headers)  # type: ignore
+                if ret != 0:
+                    console.print(f"aria2c a échoué (code={ret}) sur l'épisode {ep_num}")
+                    continue
+                console.print(f"Téléchargement terminé : {output_path}")
+        except KeyboardInterrupt:
+            console.print("\nInterrompu par l'utilisateur.")
+            sys.exit(130)
+        except Exception:
             logger.exception("Échec du téléchargement")
             sys.exit(1)
 
-        console.print(f"Téléchargement terminé : {result}")
-    
-
 
 if HAS_TYPER:
-    @app.command(name="config")
+
+    @config_app.command(name="show")  # type: ignore
     def config_show(ctx: typer.Context) -> None:
         """Affiche la configuration effective."""
 
         cfg: Config = ctx.obj or Config.from_env()
         for k, v in cfg.to_dict().items():
             console.print(f"[bold]{k}[/bold]: {v}")
+
+    @app.command(name="list")  # type: ignore
+    def list_episodes(
+        ctx: typer.Context,
+        serie: str = typer.Argument(..., help="Nom de la série."),
+        saison: int = typer.Option(1, "--saison", help="Numéro de saison."),
+    ) -> None:
+        """Liste les épisodes disponibles pour une série et saison données."""
+        cfg: Config = ctx.obj or Config.from_env()
+        scraper = Scraper(config=cfg)
+
+        console.print(f"[cyan]Recherche des épisodes pour la série '{serie}' (Saison {saison})...[/cyan]")
+        episodes = scraper.get_episodes_list(serie=serie, saison=saison)
+
+        if not episodes:
+            console.print("[red]Série introuvable ou aucun épisode disponible.[/red]")
+            raise typer.Exit(code=1)
+
+        try:
+            from rich.table import Table
+
+            table = Table(title=f"Épisodes trouvés pour '{serie}' (Saison {saison})")
+            table.add_column("Saison", justify="center", style="cyan")
+            table.add_column("Épisode", justify="center", style="magenta")
+
+            for ep in episodes:
+                table.add_row(str(saison), str(ep))
+            console.print(table)
+        except ImportError:
+            console.print(f"Épisodes trouvés: {episodes}")
+
+    @app.command(name="search")  # type: ignore
+    def search_serie(
+        ctx: typer.Context, requete: str = typer.Argument(..., help="Nom de la série à rechercher.")
+    ) -> None:
+        """Recherche une série sur le site et renvoie l'URL trouvée."""
+        cfg: Config = ctx.obj or Config.from_env()
+        scraper = Scraper(config=cfg)
+
+        console.print(f"[cyan]Recherche de '{requete}'...[/cyan]")
+        url = scraper._search_series_page_url(requete, trace=False)
+        if url:
+            console.print(f"[green]Série trouvée ![/green] URL : [bold]{url}[/bold]")
+            slug = scraper._extract_slug_from_page_url(url)
+            if slug:
+                console.print(f"Slug officiel à utiliser : [bold cyan]{slug}[/bold cyan]")
+        else:
+            console.print("[red]Aucune série correspondante trouvée.[/red]")
+
+    @app.command(name="cleanup")  # type: ignore
+    def cleanup_tmp(
+        ctx: typer.Context,
+        force: bool = typer.Option(False, "--force", "-f", help="Supprime sans demander confirmation."),
+    ) -> None:
+        """Nettoie les dossiers temporaires laissés par MagiaStream."""
+        cfg: Config = ctx.obj or Config.from_env()
+        import shutil
+        import tempfile
+
+        temp_dirs_to_check = [Path(tempfile.gettempdir()), Path(cfg.TEMP_DIR)]
+        to_delete = []
+        total_size = 0
+
+        for tdir in set(temp_dirs_to_check):
+            if not tdir.exists():
+                continue
+            for item in tdir.iterdir():
+                if item.is_dir() and (
+                    item.name.startswith("magiastream_job_") or item.name.startswith("magia_scratch_")
+                ):
+                    to_delete.append(item)
+                    for root, dirs, files in os.walk(item):
+                        for f in files:
+                            fp = os.path.join(root, f)
+                            if not os.path.islink(fp):
+                                total_size += os.path.getsize(fp)
+
+        if not to_delete:
+            console.print("[green]Aucun dossier temporaire MagiaStream trouvé. Le système est propre.[/green]")
+            return
+
+        mb_size = total_size / (1024 * 1024)
+        console.print(f"[yellow]Trouvé {len(to_delete)} dossier(s) orphelin(s) occupant {mb_size:.2f} Mo.[/yellow]")
+
+        if not force:
+            confirm = typer.confirm("Voulez-vous supprimer ces dossiers définitivement ?")
+            if not confirm:
+                console.print("Nettoyage annulé.")
+                raise typer.Exit()
+
+        for d in to_delete:
+            try:
+                shutil.rmtree(d)
+            except Exception as e:
+                console.print(f"[red]Erreur lors de la suppression de {d}: {e}[/red]")
+
+        console.print(
+            f"[bold green]Nettoyage terminé : {len(to_delete)} dossiers supprimés ({mb_size:.2f} Mo libérés).[/bold green]"
+        )
+
+    @app.command(name="batch")  # type: ignore
+    def batch_download(
+        ctx: typer.Context, file: str = typer.Argument(..., help="Chemin vers le fichier JSON de batch.")
+    ) -> None:
+        """Exécute une série de téléchargements à partir d'un fichier JSON."""
+        import json
+
+        cfg: Config = ctx.obj or Config.from_env()
+        scraper = Scraper(config=cfg)
+        downloader = Downloader(aria2c_path=cfg.ARIA2C_PATH, extra_opts=cfg.ARIA2C_OPTS)
+
+        file_path = Path(file)
+        if not file_path.exists():
+            console.print(f"[red]Fichier introuvable : {file}[/red]")
+            raise typer.Exit(code=2)
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                jobs = json.load(f)
+        except Exception as e:
+            console.print(f"[red]Erreur de lecture du JSON : {e}[/red]")
+            raise typer.Exit(code=2)
+
+        if not isinstance(jobs, list):
+            console.print("[red]Le fichier JSON doit contenir un tableau d'objets (liste).[/red]")
+            raise typer.Exit(code=2)
+
+        console.print(f"[bold cyan]Démarrage du batch avec {len(jobs)} tâche(s).[/bold cyan]")
+
+        try:
+            for i, job in enumerate(jobs, 1):
+                serie = job.get("serie")
+                if not serie:
+                    console.print(f"[yellow]Tâche {i} ignorée : clé 'serie' manquante.[/yellow]")
+                    continue
+
+                saison = job.get("saison", 1)
+                resolution = job.get("resolution", "1080p")
+                all_episodes = job.get("all", False)
+                range_episodes = job.get("range", None)
+                episode = job.get("episode", None)
+
+                episodes_to_download: List[int] = []
+
+                console.print(
+                    f"\n[bold magenta]=== Traitement de la tâche {i}/{len(jobs)} : {serie} (Saison {saison}) ===[/bold magenta]"
+                )
+
+                if all_episodes:
+                    console.print(f"[cyan]Découverte des épisodes pour {serie}...[/cyan]")
+                    found = scraper.get_episodes_list(serie=serie, saison=saison)
+                    if not found:
+                        console.print(f"[red]Aucun épisode trouvé pour la série {serie}.[/red]")
+                        continue
+                    episodes_to_download = found
+                elif range_episodes:
+                    try:
+                        parts = str(range_episodes).split("-")
+                        if len(parts) == 2:
+                            start, end = int(parts[0]), int(parts[1])
+                            episodes_to_download = list(range(start, end + 1))
+                        else:
+                            episodes_to_download = [int(p.strip()) for p in str(range_episodes).split(",")]
+                    except Exception:
+                        console.print(f"[red]Format de range invalide pour {serie}.[/red]")
+                        continue
+                elif episode is not None:
+                    episodes_to_download = [int(episode)]
+                else:
+                    console.print(f"[red]Tâche {i} ignorée : aucune stratégie (episode, all, range) spécifiée.[/red]")
+                    continue
+
+                console.print(f"[cyan]Épisodes planifiés : {episodes_to_download}[/cyan]")
+
+                for ep_num in episodes_to_download:
+                    console.print(f"[bold cyan] -> Épisode {ep_num}[/bold cyan]")
+                    try:
+                        ep_obj = scraper.search_episode(
+                            serie=serie, saison=saison, episode=ep_num, resolution=resolution
+                        )
+                        if not ep_obj or not getattr(ep_obj, "stream_url", None):
+                            console.print(f"[red]Aucun flux trouvé pour S{saison}E{ep_num}.[/red]")
+                            continue
+
+                        out_dir = Path(cfg.OUTPUT_DIR) / serie
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        out_name = f"S{saison:02d}E{ep_num:02d}.mp4"
+                        output_path = str(out_dir / out_name)
+
+                        ret = downloader.download_stream(ep_obj.stream_url, output_path, headers=ep_obj.headers)  # type: ignore
+                        if ret != 0:
+                            console.print(f"[red]aria2c a échoué (code={ret}) sur l'épisode {ep_num}[/red]")
+                            continue
+
+                        console.print(f"[green]Succès : {output_path}[/green]")
+                    except KeyboardInterrupt:
+                        raise  # Remonte à l'exception parente pour stopper le batch
+                    except Exception as e:
+                        console.print(f"[red]Erreur sur {serie} S{saison}E{ep_num} : {e}[/red]")
+                        continue
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interruption par l'utilisateur (Ctrl+C). Arrêt propre du mode batch.[/yellow]")
+            raise typer.Exit(code=130)
+        except Exception as e:
+            logger.exception("Erreur fatale du batch")
+            console.print(f"[red]Arrêt du batch suite à une erreur : {e}[/red]")
+            raise typer.Exit(code=1)
+
+        console.print("\n[bold green]Batch terminé ![/bold green]")
 else:
+
     def config_show_fallback() -> None:
         cfg = _configure_global(verbose=False, config_file=None)
         for k, v in cfg.to_dict().items():
             console.print(f"{k}: {v}")
 
 
-if __name__ == "__main__":
+def run() -> None:
+    """Entrypoint utilisable par la console-script.
+
+    Appelle Typer si disponible, sinon exécute le fallback minimal.
+    """
+
     if HAS_TYPER:
-        app()
-    else:
-        # minimal fallback: parse args to support --help, config show, download
-        argv = sys.argv[1:]
-        if not argv or "--help" in argv or "-h" in argv:
-            console.print("MagiaStream (fallback) - fonctionnalités limitées:\n  config show\n  download --serie NAME --episode N [--saison N] [--resolution R]")
-            sys.exit(0)
+        app()  # type: ignore
+        return
 
-        if argv[0] == "config" and len(argv) > 1 and argv[1] == "show":
-            config_show_fallback()
-            sys.exit(0)
+    # minimal fallback: parse args to support --help, config show, download
+    argv = sys.argv[1:]
+    if not argv or "--help" in argv or "-h" in argv:
+        console.print(
+            "MagiaStream (fallback) - fonctionnalités limitées:\n  config show\n  download --serie NAME --episode N [--saison N] [--resolution R]"
+        )
+        sys.exit(0)
 
-        if argv[0] == "download":
-            download_fallback(argv[1:])
-            sys.exit(0)
+    if argv[0] == "config" and len(argv) > 1 and argv[1] == "show":
+        config_show_fallback()
+        sys.exit(0)
 
-        console.print(f"Commande inconnue: {' '.join(argv)}")
-        sys.exit(2)
+    if argv[0] == "download":
+        download_fallback(argv[1:])
+        sys.exit(0)
+
+    console.print(f"Commande inconnue: {' '.join(argv)}")
+    sys.exit(2)
+
+
+if __name__ == "__main__":
+    run()

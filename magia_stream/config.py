@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field, MISSING
+from dataclasses import MISSING, dataclass, field
 from pathlib import Path
 from typing import Dict
 
 try:
     from dotenv import load_dotenv
 except Exception:  # pragma: no cover - fallback when python-dotenv is not installed
-    def load_dotenv(*_args, **_kwargs):
+
+    def load_dotenv(*_args, **_kwargs):  # type: ignore
         return None
 
-from magia_stream.exceptions import ConfigError
 
+from magia_stream.exceptions import ConfigError
 
 load_dotenv()
 
@@ -30,8 +31,7 @@ class Config:
     OUTPUT_DIR: Path = field(default_factory=lambda: Path.cwd() / "downloads")
     TEMP_DIR: Path = field(default_factory=lambda: Path.cwd() / ".tmp")
     USER_AGENT: str = (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     )
     TIMEOUT_SECONDS: int = 30
     ARIA2C_PATH: str = "aria2c"
@@ -64,24 +64,26 @@ class Config:
             return fallback
 
         try:
-            base_default = _default("BASE_URL", cls.BASE_URL)
+            base_default = _default("BASE_URL", cls.BASE_URL)  # type: ignore
             base = os.getenv("BASE_URL", base_default)
             if not isinstance(base, str) or not base.startswith("http"):
                 raise ConfigError("BASE_URL invalide")
 
-            output_default = _default("OUTPUT_DIR", str(cls.OUTPUT_DIR))
-            temp_default = _default("TEMP_DIR", str(cls.TEMP_DIR))
+            output_default = _default("OUTPUT_DIR", str(cls.OUTPUT_DIR))  # type: ignore
+            temp_default = _default("TEMP_DIR", str(cls.TEMP_DIR))  # type: ignore
 
             output = Path(os.getenv("OUTPUT_DIR", str(output_default)))
             temp = Path(os.getenv("TEMP_DIR", str(temp_default)))
-            user_agent = os.getenv("USER_AGENT", _default("USER_AGENT", cls.USER_AGENT))
-            timeout = int(os.getenv("TIMEOUT_SECONDS", str(_default("TIMEOUT_SECONDS", cls.TIMEOUT_SECONDS))))
-            aria2c_path = os.getenv("ARIA2C_PATH", _default("ARIA2C_PATH", cls.ARIA2C_PATH))
-            playwright_browsers = os.getenv("PLAYWRIGHT_BROWSERS", _default("PLAYWRIGHT_BROWSERS", cls.PLAYWRIGHT_BROWSERS))
-            log_level = os.getenv("LOG_LEVEL", _default("LOG_LEVEL", cls.LOG_LEVEL))
-            log_json = os.getenv("LOG_JSON", str(_default("LOG_JSON", cls.LOG_JSON))).lower() in ("1", "true", "yes")
-            aria2c_opts = os.getenv("ARIA2C_OPTS", _default("ARIA2C_OPTS", cls.ARIA2C_OPTS))
-            max_retries = int(os.getenv("MAX_RETRIES", str(_default("MAX_RETRIES", cls.MAX_RETRIES))))
+            user_agent = os.getenv("USER_AGENT", _default("USER_AGENT", cls.USER_AGENT))  # type: ignore
+            timeout = int(os.getenv("TIMEOUT_SECONDS", str(_default("TIMEOUT_SECONDS", cls.TIMEOUT_SECONDS))))  # type: ignore
+            aria2c_path = os.getenv("ARIA2C_PATH", _default("ARIA2C_PATH", cls.ARIA2C_PATH))  # type: ignore
+            playwright_browsers = os.getenv(
+                "PLAYWRIGHT_BROWSERS", _default("PLAYWRIGHT_BROWSERS", cls.PLAYWRIGHT_BROWSERS)  # type: ignore
+            )
+            log_level = os.getenv("LOG_LEVEL", _default("LOG_LEVEL", cls.LOG_LEVEL))  # type: ignore
+            log_json = os.getenv("LOG_JSON", str(_default("LOG_JSON", cls.LOG_JSON))).lower() in ("1", "true", "yes")  # type: ignore
+            aria2c_opts = os.getenv("ARIA2C_OPTS", _default("ARIA2C_OPTS", cls.ARIA2C_OPTS))  # type: ignore
+            max_retries = int(os.getenv("MAX_RETRIES", str(_default("MAX_RETRIES", cls.MAX_RETRIES))))  # type: ignore
 
         except ValueError as exc:
             raise ConfigError(f"Erreur de parsing de la config: {exc}") from exc

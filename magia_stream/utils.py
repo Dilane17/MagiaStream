@@ -12,10 +12,11 @@ import logging
 import logging.handlers
 import re
 from pathlib import Path
-from typing import Callable, Any
+from typing import Any, Callable
 
 try:
-    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except Exception:
     HAS_TENACITY = False
@@ -46,7 +47,9 @@ def setup_logging(level: int = logging.INFO, log_file: Path | None = None, json_
             ensure_directory(log_file.parent)
         except Exception:
             pass
-        file_handler = logging.handlers.RotatingFileHandler(filename=str(log_file), maxBytes=5 * 1024 * 1024, backupCount=5)
+        file_handler = logging.handlers.RotatingFileHandler(
+            filename=str(log_file), maxBytes=5 * 1024 * 1024, backupCount=5
+        )
         file_handler.setFormatter(JsonLogFormatter() if json_format else logging.Formatter(DEFAULT_LOG_FORMAT))
         root.addHandler(file_handler)
 
@@ -64,7 +67,9 @@ class JsonLogFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-def tenacity_retry(retries: int = 3, min_wait: int = 1, max_wait: int = 10, retry_exceptions: Any = Exception) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def tenacity_retry(
+    retries: int = 3, min_wait: int = 1, max_wait: int = 10, retry_exceptions: Any = Exception
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Décorateur configurable; utilise `tenacity` si disponible sinon un fallback.
 
     - `retries`: nombre maximal de tentatives
@@ -83,17 +88,17 @@ def tenacity_retry(retries: int = 3, min_wait: int = 1, max_wait: int = 10, retr
         return _decorator
 
     # simple fallback implementation
-    import time
     import functools
+    import time
 
-    def _decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+    def _decorator(fn: Callable[..., Any]) -> Callable[..., Any]:  # type: ignore
         @functools.wraps(fn)
         def _wrapped(*args: Any, **kwargs: Any) -> Any:
             attempt = 0
             while True:
                 try:
                     return fn(*args, **kwargs)
-                except retry_exceptions as exc:
+                except retry_exceptions:
                     attempt += 1
                     if attempt > retries:
                         raise
@@ -132,7 +137,7 @@ def human_readable_size(num: int, suffix: str = "B") -> str:
     for unit in ["", "K", "M", "G", "T", "P"]:
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}{suffix}"
-        num /= 1024.0
+        num /= 1024.0  # type: ignore
     return f"{num:.1f}Y{suffix}"
 
 
