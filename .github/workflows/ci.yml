@@ -29,15 +29,19 @@ jobs:
 
     - name: Run Ruff Format Check
       run: |
-        ruff format --check magia_stream/
+        python -m ruff format --check magia_stream/
 
     - name: Run Ruff Lint Check
       run: |
-        ruff check magia_stream/
+        python -m ruff check magia_stream/
 
     - name: Run Mypy Type Checking
       run: |
-        mypy magia_stream/
+        python -m mypy magia_stream/
+
+    - name: Run Pytest
+      run: |
+        python -m pytest tests/
 
     - name: Build Wheel (Dry-run packaging)
       run: |

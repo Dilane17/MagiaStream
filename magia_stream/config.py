@@ -78,7 +78,8 @@ class Config:
             timeout = int(os.getenv("TIMEOUT_SECONDS", str(_default("TIMEOUT_SECONDS", cls.TIMEOUT_SECONDS))))  # type: ignore
             aria2c_path = os.getenv("ARIA2C_PATH", _default("ARIA2C_PATH", cls.ARIA2C_PATH))  # type: ignore
             playwright_browsers = os.getenv(
-                "PLAYWRIGHT_BROWSERS", _default("PLAYWRIGHT_BROWSERS", cls.PLAYWRIGHT_BROWSERS)  # type: ignore
+                "PLAYWRIGHT_BROWSERS",
+                _default("PLAYWRIGHT_BROWSERS", cls.PLAYWRIGHT_BROWSERS),  # type: ignore
             )
             log_level = os.getenv("LOG_LEVEL", _default("LOG_LEVEL", cls.LOG_LEVEL))  # type: ignore
             log_json = os.getenv("LOG_JSON", str(_default("LOG_JSON", cls.LOG_JSON))).lower() in ("1", "true", "yes")  # type: ignore
