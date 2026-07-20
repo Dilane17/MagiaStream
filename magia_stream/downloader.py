@@ -94,15 +94,23 @@ class Downloader:
             for index, seg_url in enumerate(seg_urls, start=1):
                 local_name = f"segment_{index:05d}.ts"
                 segment_files.append(local_name)
-                local_path = temp_dir / local_name
-                aria2_tracking_file = temp_dir / f"{local_name}.aria2"
 
-                if local_path.exists() and not aria2_tracking_file.exists() and local_path.stat().st_size > 0:
-                    self.logger.info("Segment skip (déjà téléchargé) : %s", local_name)
-                else:
-                    missing_segments.append((seg_url, local_name))
+            while True:
+                missing_segments = []
+                for index, seg_url in enumerate(seg_urls, start=1):
+                    local_name = f"segment_{index:05d}.ts"
+                    local_path = temp_dir / local_name
+                    aria2_tracking_file = temp_dir / f"{local_name}.aria2"
 
-            if missing_segments:
+                    if local_path.exists() and not aria2_tracking_file.exists() and local_path.stat().st_size > 0:
+                        pass
+                    else:
+                        missing_segments.append((seg_url, local_name))
+
+                if not missing_segments:
+                    self.logger.info("Tous les segments sont déjà téléchargés.")
+                    break
+
                 with input_file_path.open("w", encoding="utf-8") as handle:
                     for seg_url, local_name in missing_segments:
                         handle.write(f"{seg_url}\n")
@@ -112,17 +120,65 @@ class Downloader:
                 self.logger.info(
                     "Lancement du téléchargement parallèle des segments (%s manquants)...", len(missing_segments)
                 )
-                aria2c_proc, aria2c_stderr = self._run_aria2c(aria2c_cmd, self.aria2c_debug_log)
+
+                try:
+                    from rich.progress import (
+                        BarColumn,
+                        Progress,
+                        SpinnerColumn,
+                        TextColumn,
+                        TimeElapsedColumn,
+                        TimeRemainingColumn,
+                    )
+
+                    def count_completed() -> int:
+                        c = 0
+                        for _, lname in missing_segments:
+                            lpath = temp_dir / lname
+                            trk = temp_dir / f"{lname}.aria2"
+                            if lpath.exists() and not trk.exists() and lpath.stat().st_size > 0:
+                                c += 1
+                        return c
+
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        BarColumn(),
+                        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                        TextColumn("({task.completed}/{task.total})"),
+                        TimeElapsedColumn(),
+                        TimeRemainingColumn(),
+                    ) as progress:
+                        task_id = progress.add_task("[cyan]Téléchargement des segments...", total=len(missing_segments))
+
+                        def poll_cb() -> None:
+                            progress.update(task_id, completed=count_completed())
+
+                        aria2c_proc, aria2c_stderr = self._run_aria2c(
+                            aria2c_cmd, self.aria2c_debug_log, poll_callback=poll_cb
+                        )
+                except ImportError:
+                    aria2c_proc, aria2c_stderr = self._run_aria2c(aria2c_cmd, self.aria2c_debug_log)
 
                 if aria2c_proc.returncode != 0:
                     keep_temp_dir = True
+                    # Check if user canceled (Ctrl+C often returns 130, or aria2c returns 2/7/etc for aborts, but 130 is universal SIGINT)
+                    if aria2c_proc.returncode == 130:
+                        self.logger.error("Téléchargement interrompu par l'utilisateur.")
+                        return 130
+
                     error_text = aria2c_stderr.decode("utf-8", errors="ignore") if aria2c_stderr else ""
+                    self.logger.warning("aria2c a échoué (code de sortie: %s).", aria2c_proc.returncode)
                     if error_text:
-                        self.logger.error("Erreur aria2c: %s", error_text.strip())
-                    self.logger.error("Erreur aria2c (code de sortie: %s).", aria2c_proc.returncode)
-                    return aria2c_proc.returncode
-            else:
-                self.logger.info("Tous les segments sont déjà téléchargés.")
+                        self.logger.debug("Détails erreur aria2c: %s", error_text.strip())
+
+                    self.logger.info("Relance automatique du téléchargement dans 5 secondes...")
+                    import time
+
+                    time.sleep(5)
+                    continue
+                else:
+                    break
 
             concat_file_path = temp_dir / "concat_list.txt"
             with concat_file_path.open("w", encoding="utf-8") as handle:
@@ -234,14 +290,17 @@ class Downloader:
             "-c",
             "--allow-overwrite=true",
             "--auto-file-renaming=false",
-            "--max-tries=5",
-            "--retry-wait=2",
+            "--max-tries=50",
+            "--retry-wait=3",
             "-x",
-            "16",
+            "4",
             "-s",
-            "16",
+            "4",
             "-j",
-            "16",
+            "4",
+            "--connect-timeout=30",
+            "--timeout=60",
+            "--lowest-speed-limit=1K",
             "-d",
             str(output_parent),
             "-o",
@@ -287,14 +346,17 @@ class Downloader:
             "-c",
             "--allow-overwrite=true",
             "--auto-file-renaming=false",
-            "--max-tries=5",
-            "--retry-wait=2",
+            "--max-tries=50",
+            "--retry-wait=3",
             "-x",
-            "16",
+            "4",
             "-s",
-            "16",
+            "4",
             "-j",
-            "16",
+            "4",
+            "--connect-timeout=30",
+            "--timeout=60",
+            "--lowest-speed-limit=1K",
         ]
         cmd.extend(self._aria2c_header_args(headers))
         if self.extra_opts:
@@ -329,7 +391,9 @@ class Downloader:
         except Exception:
             pass
 
-    def _run_aria2c(self, cmd: list[str], debug_log_path: Path) -> tuple[subprocess.Popen[Any], bytes]:
+    def _run_aria2c(
+        self, cmd: list[str], debug_log_path: Path, poll_callback: Optional[Any] = None
+    ) -> tuple[subprocess.Popen[Any], bytes]:
         debug_log_path.parent.mkdir(parents=True, exist_ok=True)
         with debug_log_path.open("a", encoding="utf-8") as log_handle:
             log_handle.write("\n=== aria2c invocation ===\n")
@@ -341,7 +405,21 @@ class Downloader:
                 stderr=log_handle,
                 text=True,
             )
-            proc.wait()
+            if poll_callback:
+                import time
+
+                while proc.poll() is None:
+                    try:
+                        poll_callback()
+                    except Exception:
+                        pass
+                    time.sleep(0.5)
+                try:
+                    poll_callback()
+                except Exception:
+                    pass
+            else:
+                proc.wait()
         try:
             return proc, debug_log_path.read_bytes()
         except Exception:
