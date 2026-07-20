@@ -65,12 +65,15 @@ class Scraper:
         )
 
         browser_user_agent = getattr(self.config, "USER_AGENT", None)
+        browser_headless = getattr(self.config, "HEADLESS", True)
+        
         if BrowserManager is None:
             self.browser_manager = None
-        elif browser_user_agent:
-            self.browser_manager = BrowserManager(user_agent=browser_user_agent)
         else:
-            self.browser_manager = BrowserManager()
+            kwargs = {"headless": browser_headless}
+            if browser_user_agent:
+                kwargs["user_agent"] = browser_user_agent
+            self.browser_manager = BrowserManager(**kwargs)
 
     @staticmethod
     def _normalize_for_match(value: str) -> str:

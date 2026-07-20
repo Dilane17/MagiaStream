@@ -40,6 +40,7 @@ class Config:
     LOG_JSON: bool = False
     ARIA2C_OPTS: str = "-x 16 -s 16"
     MAX_RETRIES: int = 3
+    HEADLESS: bool = True
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -85,6 +86,7 @@ class Config:
             log_json = os.getenv("LOG_JSON", str(_default("LOG_JSON", cls.LOG_JSON))).lower() in ("1", "true", "yes")  # type: ignore
             aria2c_opts = os.getenv("ARIA2C_OPTS", _default("ARIA2C_OPTS", cls.ARIA2C_OPTS))  # type: ignore
             max_retries = int(os.getenv("MAX_RETRIES", str(_default("MAX_RETRIES", cls.MAX_RETRIES))))  # type: ignore
+            headless = os.getenv("HEADLESS", str(_default("HEADLESS", cls.HEADLESS))).lower() in ("1", "true", "yes")  # type: ignore
 
         except ValueError as exc:
             raise ConfigError(f"Erreur de parsing de la config: {exc}") from exc
@@ -101,6 +103,7 @@ class Config:
             LOG_JSON=log_json,
             ARIA2C_OPTS=aria2c_opts,
             MAX_RETRIES=max_retries,
+            HEADLESS=headless,
         )
 
         # validations simples
