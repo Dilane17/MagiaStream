@@ -14,13 +14,43 @@ MagiaStream est un orchestrateur de téléchargement CLI avancé en Python 3.14+
 
 ## 🚀 Installation
 
-### Prérequis
-- Python 3.13 ou 3.14+
-- `aria2c` (pour le téléchargement rapide des segments)
-- `ffmpeg` (pour la fusion des segments vidéo)
+### 🌍 Compatibilité (Multiplateforme)
+MagiaStream est 100% compatible avec **Windows, macOS et toutes les distributions Linux**.
+Les seules exigences système à installer via votre gestionnaire de paquets (`apt`, `brew`, `winget`, etc.) sont :
+- Python 3.10 ou supérieur
+- `aria2c` (moteur de téléchargement ultra-rapide)
+- `ffmpeg` (pour la fusion finale des vidéos)
+
+### Méthode 1 : Installation Globale avec `pipx` (Recommandée)
+`pipx` est l'outil standard pour installer des applications CLI Python de manière globale, sans polluer le système.
+
+```bash
+# 1. Installer pipx si vous ne l'avez pas déjà
+python -m pip install --user pipx
+python -m pipx ensurepath
+
+# 2. Installer MagiaStream directement depuis le dépôt Git
+pipx install git+https://github.com/ton-profil/MagiaStream.git
+
+# 3. Finaliser l'installation (télécharge le navigateur fantôme nécessaire)
+magia setup
+```
+
+*(Note : Remplacez `ton-profil/MagiaStream.git` par l'URL réelle de votre dépôt Github).*
+
+### 🔄 Mise à jour Automatique
+Mettre à jour MagiaStream vers la toute dernière version se fait en une seule commande, peu importe la méthode d'installation choisie :
+```bash
+magia update
+```
+
+### Méthode 2 : Installation pour le Développement (Local)
+Si vous souhaitez modifier le code ou contribuer au projet :
 
 ```bash
 # 1. Cloner et préparer l'environnement virtuel
+git clone https://github.com/ton-profil/MagiaStream.git
+cd MagiaStream
 python -m venv venv
 source venv/bin/activate
 

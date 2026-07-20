@@ -564,6 +564,98 @@ if HAS_TYPER:
         )
 
 
+if HAS_TYPER:
+
+    @app.command("update")  # type: ignore
+    def update_command() -> None:
+        """Met à jour MagiaStream vers la dernière version (pipx ou git)."""
+        import shutil
+        import subprocess
+
+        console.print("[bold cyan]Recherche de mises à jour pour MagiaStream...[/bold cyan]")
+
+        if shutil.which("pipx"):
+            console.print("Environnement pipx détecté. Lancement de pipx upgrade...")
+            res = subprocess.run(["pipx", "upgrade", "magiastream"])
+            if res.returncode == 0:
+                console.print("[bold green]Mise à jour réussie ![/bold green]")
+            else:
+                console.print("[bold red]Erreur lors de la mise à jour via pipx.[/bold red]")
+        else:
+            console.print("Mise à jour Git/Pip locale...")
+            res = subprocess.run(["git", "pull"])
+            if res.returncode == 0:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."])
+                console.print("[bold green]Mise à jour locale réussie ![/bold green]")
+            else:
+                console.print("[bold red]Impossible de mettre à jour. Êtes-vous dans un dépôt Git valide ?[/bold red]")
+
+    @app.command("setup")  # type: ignore
+    def setup_command() -> None:
+        """Finalise l'installation (Navigateur Playwright & Vérification des dépendances système)."""
+        import platform
+        import shutil
+        import subprocess
+
+        from rich.panel import Panel
+
+        # 1. Vérification des dépendances système (non-Python)
+        missing = []
+        if not shutil.which("aria2c"):
+            missing.append("aria2c")
+        if not shutil.which("ffmpeg"):
+            missing.append("ffmpeg")
+
+        if missing:
+            os_name = platform.system()
+            if os_name == "Linux":
+                if shutil.which("dnf"):
+                    install_cmd = f"sudo dnf install {' '.join(missing)}"
+                elif shutil.which("apt"):
+                    install_cmd = f"sudo apt install {' '.join(missing)}"
+                elif shutil.which("pacman"):
+                    install_cmd = f"sudo pacman -S {' '.join(missing)}"
+                elif shutil.which("zypper"):
+                    install_cmd = f"sudo zypper install {' '.join(missing)}"
+                else:
+                    install_cmd = f"Installez via votre gestionnaire de paquets : {' '.join(missing)}"
+            elif os_name == "Darwin":
+                install_cmd = f"brew install {' '.join(missing)}"
+            elif os_name == "Windows":
+                install_cmd = f"winget install {' '.join(missing)}"
+            else:
+                install_cmd = f"Installez manuellement : {', '.join(missing)}"
+
+            console.print(
+                Panel(
+                    f"MagiaStream utilise des moteurs externes pour télécharger à très haute vitesse.\n"
+                    f"Veuillez exécuter cette commande dans votre terminal pour les installer :\n\n"
+                    f"[bold yellow]{install_cmd}[/bold yellow]",
+                    title="[bold red]⚠️ Dépendances système manquantes[/bold red]",
+                    expand=False,
+                )
+            )
+        else:
+            console.print("[bold green]✔ aria2c et ffmpeg sont bien installés sur votre système.[/bold green]")
+
+        # 2. Installation du navigateur fantôme
+        console.print("\n[bold cyan]Installation du navigateur Playwright (Chromium)...[/bold cyan]")
+        res = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"])
+
+        if res.returncode == 0:
+            console.print(
+                "\n[bold green]✨ MagiaStream est parfaitement configuré et prêt à fonctionner ![/bold green]"
+            )
+            if platform.system() == "Linux":
+                console.print(
+                    "\n[dim italic]Note pour Linux : Si vous rencontrez des erreurs liées au navigateur lors de la recherche,\n"
+                    "il se peut qu'il manque des dépendances systèmes pour Chromium. Exécutez alors :\n"
+                    "sudo python -m playwright install-deps chromium[/dim italic]"
+                )
+        else:
+            console.print("\n[bold red]Erreur lors de l'installation de Playwright.[/bold red]")
+
+
 def run() -> None:
     """Entrypoint utilisable par la console-script."""
     if HAS_TYPER:
