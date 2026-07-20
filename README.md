@@ -30,7 +30,7 @@ python -m pip install --user pipx
 python -m pipx ensurepath
 
 # 2. Installer MagiaStream directement depuis le dépôt Git
-pipx install git+https://github.com/ton-profil/MagiaStream.git
+pipx install git+https://github.com/Dilane17/MagiaStream.git
 
 # 3. Finaliser l'installation (télécharge le navigateur fantôme nécessaire)
 magia setup

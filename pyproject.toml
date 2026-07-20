@@ -4,10 +4,32 @@ build-backend = "hatchling.build"
 
 [project]
 name = "magiastream"
-version = "0.1.0"
-description = "CLI modulaire et industriel pour l'orchestration et le téléchargement de flux HLS."
+version = "1.0.0"
+description = "Un CLI industriel, résilient et interactif pour scraper et télécharger des flux HLS (animes/vidéos)."
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "dylankode", email = "ahouandjinougael733@gmail.com" }
+] 
+keywords = ["anime", "downloader", "hls", "cli", "playwright", "scraper", "magiastream"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Multimedia :: Video",
+]
+
+[project.urls]
+Homepage = "https://github.com/Dilane17/MagiaStream"
+Repository = "https://github.com/Dilane17/MagiaStream.git"
+"Bug Tracker" = "https://github.com/Dilane17/MagiaStream/issues"
 dependencies = [
     "typer[all]>=0.9.0",
     "rich>=13.0.0",
