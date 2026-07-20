@@ -66,14 +66,14 @@ class Scraper:
 
         browser_user_agent = getattr(self.config, "USER_AGENT", None)
         browser_headless = getattr(self.config, "HEADLESS", True)
-        
+
         if BrowserManager is None:
             self.browser_manager = None
         else:
-            kwargs = {"headless": browser_headless}
             if browser_user_agent:
-                kwargs["user_agent"] = browser_user_agent
-            self.browser_manager = BrowserManager(**kwargs)
+                self.browser_manager = BrowserManager(headless=browser_headless, user_agent=browser_user_agent)
+            else:
+                self.browser_manager = BrowserManager(headless=browser_headless)
 
     @staticmethod
     def _normalize_for_match(value: str) -> str:
@@ -515,70 +515,37 @@ class Scraper:
             return []
 
         try:
-            with self.browser_manager.get_page() as page:
-                bm = self.browser_manager
+            with self.browser_manager as bm:
+                page = bm.get_page()
                 timeout_ms = 30000
                 base_url = getattr(self.config, "BASE_URL", "https://voir-anime.to").rstrip("/")
 
-                # Navigate to home
-                bm.goto_with_retry(page, f"{base_url}/", timeout=timeout_ms)
-                import time, random
+                import time
+                from urllib.parse import quote_plus
 
-                time.sleep(2)
+                # Navigate directly to the standard search results page
+                query = quote_plus(serie_name)
+                search_url = f"{base_url}/?s={query}"
+                bm.goto_with_retry(page, search_url, timeout=timeout_ms)
+                time.sleep(2)  # Wait for results to render
 
-                # 1. Capture currently visible anime links on the homepage to exclude them later
-                existing_hrefs = set()
-                try:
-                    for a in page.query_selector_all('a[href*="/anime/"]'):
-                        if a.is_visible():
-                            href = (a.get_attribute("href") or "").strip()
-                            if href:
-                                existing_hrefs.add(href)
-                except Exception:
-                    pass
-
-                # 2. Find the VF search input
-                search_selector = None
-                for selector in [
-                    "input[placeholder*='VF']:visible",
-                    "input[placeholder*='vf']:visible",
-                    ".search-input:visible",
-                    "input[name='s']:visible",
-                ]:
-                    try:
-                        if page.query_selector(selector):
-                            search_selector = selector
-                            break
-                    except Exception:
-                        continue
-
-                if not search_selector:
-                    return []
-
-                # 3. Type into the input to trigger the AJAX dropdown
-                # Using type instead of fill to trigger keyboard events for autocomplete
-                page.locator(search_selector).first.type(serie_name, delay=150)
-                time.sleep(3)  # Wait for AJAX dropdown to appear
-
-                # 4. Extract NEW links that appeared (the dropdown results)
                 results: list[dict[str, str]] = []
+
+                # The search results page contains multiple links to anime.
+                # We extract all of them and filter out short texts (like 'VF', '12', etc).
                 anchors = page.query_selector_all('a[href*="/anime/"]')
                 for anchor in anchors:
                     try:
-                        if not anchor.is_visible():
-                            continue
-
                         href = (anchor.get_attribute("href") or "").strip()
                         text = (anchor.inner_text() or "").strip()
 
-                        if href and text and href not in existing_hrefs:
+                        if href and text:
                             slug = self._extract_slug_from_page_url(href)
-                            # Remove weird newlines or numbers from text (like "11" or "VF" if they are standalone tags)
-                            # But dropdown usually has the full title.
-                            if slug and len(text) > 2:
+                            # Remove weird newlines or numbers from text
+                            # We filter out very short texts which are usually episode numbers or standalone "VF" tags
+                            if slug and len(text) > 3 and slug.lower() in href.lower():
                                 # We only add if it's unique by slug
                                 if not any(r["slug"] == slug for r in results):
-                                    # Cleanup text (sometimes the text includes tags separated by newlines)
                                     clean_title = text.split("\n")[0].strip()
                                     results.append({"title": clean_title, "url": href, "slug": slug})
                     except Exception:
