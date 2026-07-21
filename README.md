@@ -21,18 +21,18 @@ Les seules exigences système à installer via votre gestionnaire de paquets (`a
 - `aria2c` (moteur de téléchargement ultra-rapide)
 - `ffmpeg` (pour la fusion finale des vidéos)
 
-### Méthode 1 : Installation Globale avec `pipx` (Recommandée)
-`pipx` est l'outil standard pour installer des applications CLI Python de manière globale, sans polluer le système.
+### Installation (Méthode Officielle PyPI)
+`pipx` est l'outil standard pour installer des applications CLI Python de manière globale.
 
 ```bash
 # 1. Installer pipx si vous ne l'avez pas déjà
 python -m pip install --user pipx
 python -m pipx ensurepath
 
-# 2. Installer MagiaStream directement depuis le dépôt Git
-pipx install git+https://github.com/Dilane17/MagiaStream.git
+# 2. Installer MagiaStream officiellement depuis PyPI
+pipx install magiastream
 
-# 3. Finaliser l'installation (télécharge le navigateur fantôme nécessaire)
+# 3. Finaliser l'installation (télécharge le navigateur et vérifie les dépendances)
 magia setup
 ```
 
