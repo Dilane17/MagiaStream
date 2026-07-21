@@ -130,6 +130,15 @@ if HAS_TYPER:
         try:
             for ep_num in episodes_to_download:
                 console.print(f"\n[bold cyan]Traitement de l'épisode {ep_num}[/bold cyan]")
+
+                out_dir = Path(cfg.OUTPUT_DIR) / serie
+                out_name = f"S{saison:02d}E{ep_num:02d}.mp4"
+                output_path = str(out_dir / out_name)
+
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    console.print(f"[green]✔ L'épisode {ep_num} a déjà été téléchargé ({output_path}). Ignoré.[/green]")
+                    continue
+
                 try:
                     ep = scraper.search_episode(
                         serie=serie, saison=saison, episode=ep_num, resolution=resolution or "1080p", trace=trace
@@ -150,10 +159,7 @@ if HAS_TYPER:
                     console.print(f"[yellow]Dry-run:[/yellow] {ep}")
                     continue
 
-                out_dir = Path(cfg.OUTPUT_DIR) / serie
                 out_dir.mkdir(parents=True, exist_ok=True)
-                out_name = f"S{saison:02d}E{ep_num:02d}.mp4"
-                output_path = str(out_dir / out_name)
 
                 ret = downloader.download_stream(ep.stream_url, output_path, headers=ep.headers)  # type: ignore
                 if ret != 0:
@@ -210,6 +216,14 @@ else:
 
         try:
             for ep_num in episodes_to_download:
+                out_dir = Path(cfg.OUTPUT_DIR) / args.serie
+                out_name = f"S{args.saison:02d}E{ep_num:02d}.mp4"
+                output_path = str(out_dir / out_name)
+
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    console.print(f"L'épisode {ep_num} existe déjà ({output_path}). Ignoré.")
+                    continue
+
                 try:
                     ep = scraper.search_episode(
                         serie=args.serie, saison=args.saison, episode=ep_num, resolution=args.resolution or "1080p"
@@ -222,10 +236,7 @@ else:
                     console.print(f"Aucun flux trouvé pour {args.serie} S{args.saison}E{ep_num}")
                     continue
 
-                out_dir = Path(cfg.OUTPUT_DIR) / args.serie
                 out_dir.mkdir(parents=True, exist_ok=True)
-                out_name = f"S{args.saison:02d}E{ep_num:02d}.mp4"
-                output_path = str(out_dir / out_name)
 
                 ret = downloader.download_stream(ep.stream_url, output_path, headers=ep.headers)  # type: ignore
                 if ret != 0:
@@ -425,6 +436,15 @@ if HAS_TYPER:
 
                 for ep_num in episodes_to_download:
                     console.print(f"[bold cyan] -> Épisode {ep_num}[/bold cyan]")
+
+                    out_dir = Path(cfg.OUTPUT_DIR) / serie
+                    out_name = f"S{saison:02d}E{ep_num:02d}.mp4"
+                    output_path = str(out_dir / out_name)
+
+                    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                        console.print(f"[green]✔ L'épisode {ep_num} existe déjà. Ignoré.[/green]")
+                        continue
+
                     try:
                         ep_obj = scraper.search_episode(
                             serie=serie, saison=saison, episode=ep_num, resolution=resolution
@@ -433,10 +453,7 @@ if HAS_TYPER:
                             console.print(f"[red]Aucun flux trouvé pour S{saison}E{ep_num}.[/red]")
                             continue
 
-                        out_dir = Path(cfg.OUTPUT_DIR) / serie
                         out_dir.mkdir(parents=True, exist_ok=True)
-                        out_name = f"S{saison:02d}E{ep_num:02d}.mp4"
-                        output_path = str(out_dir / out_name)
 
                         ret = downloader.download_stream(ep_obj.stream_url, output_path, headers=ep_obj.headers)  # type: ignore
                         if ret != 0:
