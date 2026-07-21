@@ -30,6 +30,7 @@ class Config:
     BASE_URL: str = "https://voir-anime.to"
     OUTPUT_DIR: Path = field(default_factory=lambda: Path.cwd() / "downloads")
     TEMP_DIR: Path = field(default_factory=lambda: Path.cwd() / ".tmp")
+    USER_DATA_DIR: Path = field(default_factory=lambda: Path.cwd() / ".playwright_profile")
     USER_AGENT: str = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     )
@@ -72,9 +73,11 @@ class Config:
 
             output_default = _default("OUTPUT_DIR", str(cls.OUTPUT_DIR))  # type: ignore
             temp_default = _default("TEMP_DIR", str(cls.TEMP_DIR))  # type: ignore
+            user_data_default = _default("USER_DATA_DIR", str(cls.USER_DATA_DIR))  # type: ignore
 
             output = Path(os.getenv("OUTPUT_DIR", str(output_default)))
             temp = Path(os.getenv("TEMP_DIR", str(temp_default)))
+            user_data_dir = Path(os.getenv("USER_DATA_DIR", str(user_data_default)))
             user_agent = os.getenv("USER_AGENT", _default("USER_AGENT", cls.USER_AGENT))  # type: ignore
             timeout = int(os.getenv("TIMEOUT_SECONDS", str(_default("TIMEOUT_SECONDS", cls.TIMEOUT_SECONDS))))  # type: ignore
             aria2c_path = os.getenv("ARIA2C_PATH", _default("ARIA2C_PATH", cls.ARIA2C_PATH))  # type: ignore
@@ -95,6 +98,7 @@ class Config:
             BASE_URL=base,
             OUTPUT_DIR=output,
             TEMP_DIR=temp,
+            USER_DATA_DIR=user_data_dir,
             USER_AGENT=user_agent,
             TIMEOUT_SECONDS=timeout,
             ARIA2C_PATH=aria2c_path,
@@ -119,6 +123,7 @@ class Config:
             "BASE_URL": self.BASE_URL,
             "OUTPUT_DIR": str(self.OUTPUT_DIR),
             "TEMP_DIR": str(self.TEMP_DIR),
+            "USER_DATA_DIR": str(self.USER_DATA_DIR),
             "USER_AGENT": self.USER_AGENT,
             "TIMEOUT_SECONDS": str(self.TIMEOUT_SECONDS),
             "ARIA2C_PATH": self.ARIA2C_PATH,

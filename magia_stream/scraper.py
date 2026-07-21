@@ -66,14 +66,17 @@ class Scraper:
 
         browser_user_agent = getattr(self.config, "USER_AGENT", None)
         browser_headless = getattr(self.config, "HEADLESS", True)
+        user_data_dir = getattr(self.config, "USER_DATA_DIR", None)
 
         if BrowserManager is None:
             self.browser_manager = None
         else:
+            kwargs = {"headless": browser_headless}
             if browser_user_agent:
-                self.browser_manager = BrowserManager(headless=browser_headless, user_agent=browser_user_agent)
-            else:
-                self.browser_manager = BrowserManager(headless=browser_headless)
+                kwargs["user_agent"] = browser_user_agent
+            if user_data_dir:
+                kwargs["user_data_dir"] = str(user_data_dir)
+            self.browser_manager = BrowserManager(**kwargs)
 
     @staticmethod
     def _normalize_for_match(value: str) -> str:
@@ -527,7 +530,13 @@ class Scraper:
                 query = quote_plus(serie_name)
                 search_url = f"{base_url}/?s={query}"
                 bm.goto_with_retry(page, search_url, timeout=timeout_ms)
-                time.sleep(2)  # Wait for results to render
+                
+                try:
+                    # Attendre que les liens se chargent (pour passer les protections Cloudflare éventuelles)
+                    page.wait_for_selector('a[href*="/anime/"]', timeout=10000)
+                except Exception:
+                    pass
+
 
                 results: list[dict[str, str]] = []
 

@@ -74,6 +74,7 @@ class BrowserManager:
 
     headless: bool = False
     user_agent: str = DEFAULT_USER_AGENT
+    user_data_dir: Optional[str] = None
     viewport: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_VIEWPORT))
     locale: str = DEFAULT_LOCALE
     timezone_id: str = "Europe/Paris"
@@ -102,8 +103,24 @@ class BrowserManager:
 
         self._playwright_ctx = sync_playwright()
         self.playwright = self._playwright_ctx.__enter__()
-        self.browser = self.playwright.chromium.launch(headless=self.headless)
-        self.context = self._create_context()
+
+        if self.user_data_dir:
+            import os
+            os.makedirs(self.user_data_dir, exist_ok=True)
+            self.context = self.playwright.chromium.launch_persistent_context(
+                user_data_dir=self.user_data_dir,
+                headless=self.headless,
+                user_agent=self.user_agent,
+                viewport=self.viewport,
+                locale=self.locale,
+                timezone_id=self.timezone_id,
+                extra_http_headers=self.extra_http_headers
+            )
+            self._inject_init_scripts(self.context)
+        else:
+            self.browser = self.playwright.chromium.launch(headless=self.headless)
+            self.context = self._create_context()
+            
         logger.debug("Playwright démarré (headless=%s)", self.headless)
         return self
 
@@ -151,6 +168,10 @@ class BrowserManager:
         context_kwargs.update(overrides)
 
         context = self.browser.new_context(**context_kwargs)
+        self._inject_init_scripts(context)
+        return context
+
+    def _inject_init_scripts(self, context: BrowserContext) -> None:
         context.add_init_script(
             """
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -158,11 +179,12 @@ class BrowserManager:
             Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
             """
         )
-        return context
 
     def new_context(self, **overrides: Any) -> BrowserContext:
         """Crée un nouveau contexte Playwright avec les paramètres standards."""
 
+        if self.user_data_dir:
+            raise RuntimeError("Impossible de créer un nouveau contexte quand user_data_dir est utilisé")
         return self._create_context(**overrides)
 
     def get_page(self) -> Page:
@@ -170,6 +192,11 @@ class BrowserManager:
 
         if self.context is None:
             raise RuntimeError("Le BrowserManager doit être démarré avant get_page()")
+            
+        if self.user_data_dir and self.context.pages:
+            # Réutiliser la page par défaut du contexte persistant
+            return self.context.pages[0]
+            
         return self.context.new_page()
 
     @retry(
