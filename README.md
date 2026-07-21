@@ -15,13 +15,16 @@ MagiaStream est un orchestrateur de téléchargement CLI avancé en Python 3.14+
 ## 🚀 Installation
 
 ### 🌍 Compatibilité (Multiplateforme)
+
 MagiaStream est 100% compatible avec **Windows, macOS et toutes les distributions Linux**.
 Les seules exigences système à installer via votre gestionnaire de paquets (`apt`, `brew`, `winget`, etc.) sont :
+
 - Python 3.10 ou supérieur
 - `aria2c` (moteur de téléchargement ultra-rapide)
 - `ffmpeg` (pour la fusion finale des vidéos)
 
 ### Installation (Méthode Officielle PyPI)
+
 `pipx` est l'outil standard pour installer des applications CLI Python de manière globale.
 
 ```bash
@@ -36,15 +39,18 @@ pipx install magiastream
 magia setup
 ```
 
-*(Note : Remplacez `ton-profil/MagiaStream.git` par l'URL réelle de votre dépôt Github).*
+_(Note : Remplacez `ton-profil/MagiaStream.git` par l'URL réelle de votre dépôt Github)._
 
 ### 🔄 Mise à jour Automatique
+
 Mettre à jour MagiaStream vers la toute dernière version se fait en une seule commande, peu importe la méthode d'installation choisie :
+
 ```bash
 magia update
 ```
 
 ### Méthode 2 : Installation pour le Développement (Local)
+
 Si vous souhaitez modifier le code ou contribuer au projet :
 
 ```bash
@@ -68,7 +74,8 @@ La manière la plus simple et la plus recommandée d'utiliser MagiaStream est le
 ```bash
 magia
 ```
-*L'assistant s'ouvrira, vous demandera quelle série chercher, affichera les vrais résultats du menu déroulant (VF/VOSTFR) via les touches fléchées, et lancera le téléchargement.*
+
+_L'assistant s'ouvrira, vous demandera quelle série chercher, affichera les vrais résultats du menu déroulant (VF/VOSTFR) via les touches fléchées, et lancera le téléchargement._
 
 ### Mode CLI Classique
 
@@ -89,15 +96,25 @@ magia download --serie "wistoria-wand-and-sword-vf" --saison 1 --range "5-12"
 
 MagiaStream utilise un fichier `.env` pour stocker sa configuration.
 Copiez le fichier d'exemple :
+
 ```bash
 cp .env.example .env
 ```
+
 Paramètres importants :
+
 - `PROXY_URL` : Un proxy pour contourner d'éventuels ban d'IP.
 - `TIMEOUT_SECONDS` : Temps d'attente maximum pour les requêtes web.
 - `HEADLESS` : Mettez `False` pour voir le navigateur fantôme travailler en arrière-plan.
 
 ## 🛠️ À propos du moteur de téléchargement
 
-Le gestionnaire de téléchargement a été optimisé pour les **réseaux très instables**. 
+Le gestionnaire de téléchargement a été optimisé pour les **réseaux très instables**.
 Plutôt que d'abandonner lorsqu'un CDN étrangle la connexion ou qu'une micro-coupure survient, MagiaStream isole les segments échoués et relance automatiquement `aria2c` en boucle toutes les 5 secondes jusqu'au succès total.
+
+## ⚠️ Avertissement Légal (Disclaimer)
+
+**MagiaStream** a été développé uniquement à des fins **éducatives** et de démonstration technique (automatisation web, web-scraping, et gestion de flux réseaux avec Python).
+
+L'auteur de cet outil n'héberge aucun contenu protégé et n'encourage en aucun cas le téléchargement illégal ou le piratage de contenus protégés par le droit d'auteur.
+Les utilisateurs sont seuls responsables de l'usage qu'ils font de cet outil. Assurez-vous d'avoir les droits nécessaires ou l'autorisation des plateformes avant de télécharger une vidéo. Cet outil est fourni "tel quel", sans aucune garantie.
