@@ -41,7 +41,7 @@ class Config:
     LOG_JSON: bool = False
     ARIA2C_OPTS: str = "-x 16 -s 16"
     MAX_RETRIES: int = 3
-    HEADLESS: bool = True
+    HEADLESS: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
