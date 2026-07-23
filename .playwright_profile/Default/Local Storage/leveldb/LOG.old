@@ -1,0 +1,4 @@
+2026/07/23-02:25:40.157 f1d2 Reusing MANIFEST /home/dylankode/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/MANIFEST-000001
+2026/07/23-02:25:40.165 f1d2 Recovering log #3
+2026/07/23-02:25:40.165 f1d2 (ignoring error) /home/dylankode/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/000003.log: dropping 5091 bytes; Corruption: checksum mismatch
+2026/07/23-02:25:40.166 f1d2 Reusing old log /home/dylankode/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/000003.log 

@@ -195,9 +195,17 @@ class BrowserManager:
             
         if self.user_data_dir and self.context.pages:
             # Réutiliser la page par défaut du contexte persistant
-            return self.context.pages[0]
+            page = self.context.pages[0]
+        else:
+            page = self.context.new_page()
             
-        return self.context.new_page()
+        try:
+            from playwright_stealth import stealth_sync
+            stealth_sync(page)
+        except ImportError:
+            logger.debug("playwright-stealth non installé, mode stealth désactivé")
+            
+        return page
 
     @retry(
         stop=stop_after_attempt(3),

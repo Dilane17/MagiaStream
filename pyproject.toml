@@ -33,7 +33,8 @@ dependencies = [
     "playwright>=1.40.0",
     "requests>=2.31.0",
     "python-dotenv>=1.0.0",
-    "questionary>=2.0.1"
+    "questionary>=2.0.1",
+    "playwright-stealth>=1.0.6"
 ]
 
 [project.optional-dependencies]
