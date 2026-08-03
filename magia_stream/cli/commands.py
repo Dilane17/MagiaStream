@@ -81,8 +81,25 @@ if HAS_TYPER:
         resolution: Optional[str] = typer.Option(None, "--resolution", help="Résolution cible, par exemple 720p ou 1080p."),
         dry_run: bool = typer.Option(False, "--dry-run", help="Ne fait que simuler la résolution de l'épisode."),
         trace: bool = typer.Option(False, "--trace", help="Affiche les URLs visitées et les requêtes captées."),
+        proxy: Optional[str] = typer.Option(None, "--proxy", help="URL du serveur proxy (ex: http://127.0.0.1:8080)."),
+        delay: Optional[float] = typer.Option(None, "--delay", help="Délai moyen en secondes entre les requêtes (ex: 2.0)."),
     ) -> None:
         cfg: Config = ctx.obj or Config.from_env()
+        if proxy:
+            cfg.HTTP_PROXY = proxy
+            cfg.HTTPS_PROXY = proxy
+        if delay and delay > 0:
+            cfg.REQUEST_DELAY_MIN = max(0.5, delay * 0.8)
+            cfg.REQUEST_DELAY_MAX = delay * 1.3
+
+        if "bleach-kai" in serie.lower() or "bleach kai" in serie.lower():
+            console.print(
+                "[bold yellow]ℹ Information Bleach : La fiche 'bleach-kai-vf' est un découpage court comportant seulement 28 épisodes.[/bold yellow]"
+            )
+            console.print(
+                "[bold yellow]  Pour télécharger les 366 épisodes originaux de Bleach, utilisez : --serie bleach-vf[/bold yellow]\n"
+            )
+
         scraper = _get_scraper(cfg)
         downloader = _get_downloader(cfg)
 
@@ -144,11 +161,15 @@ if HAS_TYPER:
         ctx: typer.Context,
         serie: str = typer.Argument(..., help="Nom de la série à rechercher."),
         trace: bool = typer.Option(False, "--trace", help="Affiche les détails de recherche."),
+        proxy: Optional[str] = typer.Option(None, "--proxy", help="URL du serveur proxy."),
     ) -> None:
         cfg: Config = ctx.obj or Config.from_env()
-        scraper = _get_scraper(cfg)
+        if proxy:
+            cfg.HTTP_PROXY = proxy
+            cfg.HTTPS_PROXY = proxy
 
         console.print(f"[cyan]Recherche de la série '{serie}'...[/cyan]")
+        scraper = _get_scraper(cfg)
         url = scraper._search_series_page_url(serie)
 
         if url:
@@ -156,6 +177,10 @@ if HAS_TYPER:
             console.print(f"[bold green]✔ Série trouvée ![/bold green]")
             console.print(f"URL : {url}")
             console.print(f"Slug officiel à utiliser : {slug}")
+            if "bleach" in serie.lower():
+                console.print(
+                    "\n[yellow]💡 Conseil Bleach : Pour la série complète de 366 épisodes, utilisez la fiche 'bleach-vf'.[/yellow]"
+                )
         else:
             console.print(f"[red]Aucune série trouvée pour '{serie}'.[/red]")
 
@@ -164,8 +189,21 @@ if HAS_TYPER:
         ctx: typer.Context,
         serie: str = typer.Argument(..., help="Nom ou slug de la série."),
         saison: int = typer.Option(1, "--saison", help="Numéro de la saison."),
+        proxy: Optional[str] = typer.Option(None, "--proxy", help="URL du serveur proxy."),
     ) -> None:
         cfg: Config = ctx.obj or Config.from_env()
+        if proxy:
+            cfg.HTTP_PROXY = proxy
+            cfg.HTTPS_PROXY = proxy
+
+        if "bleach-kai" in serie.lower() or "bleach kai" in serie.lower():
+            console.print(
+                "[bold yellow]ℹ Information Bleach : La fiche 'bleach-kai-vf' ne comporte que 28 épisodes (version Kai).[/bold yellow]"
+            )
+            console.print(
+                "[bold yellow]  Pour la série complète de 366 épisodes, utilisez la fiche 'bleach-vf'.[/bold yellow]\n"
+            )
+
         scraper = _get_scraper(cfg)
 
         console.print(f"[cyan]Recherche des épisodes pour la série '{serie}'...[/cyan]")

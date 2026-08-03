@@ -1,7 +1,13 @@
 import json
 import os
-import pytest
-from typer.testing import CliRunner
+import unittest
+
+try:
+    import pytest
+    from typer.testing import CliRunner
+except ImportError:
+    raise unittest.SkipTest("pytest ou typer indisponible")
+
 from magia_stream.cli import app
 from magia_stream.models import Episode
 

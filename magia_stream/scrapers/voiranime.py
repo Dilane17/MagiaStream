@@ -69,6 +69,9 @@ class VoirAnimeScraper(BaseScraper):
         browser_user_agent = getattr(self.config, "USER_AGENT", None)
         browser_headless = getattr(self.config, "HEADLESS", True)
         user_data_dir = getattr(self.config, "USER_DATA_DIR", None)
+        http_proxy = getattr(self.config, "HTTP_PROXY", None)
+        https_proxy = getattr(self.config, "HTTPS_PROXY", None)
+        proxy = https_proxy or http_proxy
 
         if BrowserManager is None:
             self.browser_manager = None
@@ -78,7 +81,15 @@ class VoirAnimeScraper(BaseScraper):
                 kwargs["user_agent"] = browser_user_agent
             if user_data_dir:
                 kwargs["user_data_dir"] = str(user_data_dir)
+            if proxy:
+                kwargs["proxy"] = proxy
             self.browser_manager = BrowserManager(**kwargs)  # type: ignore
+
+    def _random_pause(self) -> None:
+        delay_min = float(getattr(self.config, "REQUEST_DELAY_MIN", 1.0)) if self.config else 1.0
+        delay_max = float(getattr(self.config, "REQUEST_DELAY_MAX", 2.5)) if self.config else 2.5
+        if delay_max > 0:
+            time.sleep(random.uniform(min(delay_min, delay_max), max(delay_min, delay_max)))
 
     @staticmethod
     def _normalize_for_match(value: str) -> str:
@@ -369,12 +380,40 @@ class VoirAnimeScraper(BaseScraper):
 
     def _series_page_patterns(self, base_url: str, slug: str, episode: int) -> list[str]:
         base = base_url.rstrip("/")
-        return [
-            f"{base}/anime/{slug}/{slug}-{episode:02d}-vf/",
-            f"{base}/anime/{slug}/{slug}-{episode:02d}-vostfr/",
-            f"{base}/anime/{slug}/{episode:02d}/",
-            f"{base}/anime/{slug}/episode-{episode}/",
+        clean_slug = slug.lower()
+        base_slug = clean_slug
+        for suffix in ("-vf", "-vostfr"):
+            if base_slug.endswith(suffix):
+                base_slug = base_slug[: -len(suffix)]
+                break
+
+        ep_str = str(episode)
+        ep_02d = f"{episode:02d}"
+        ep_03d = f"{episode:03d}"
+
+        raw_patterns = [
+            f"{base}/anime/{clean_slug}/{clean_slug}-{ep_02d}-vf/",
+            f"{base}/anime/{clean_slug}/{base_slug}-{ep_02d}-vf/",
+            f"{base}/anime/{clean_slug}/{base_slug}-{ep_03d}-vf/",
+            f"{base}/anime/{clean_slug}/{clean_slug}-{ep_03d}-vf/",
+            f"{base}/anime/{clean_slug}/{clean_slug}-{ep_02d}-vostfr/",
+            f"{base}/anime/{clean_slug}/{base_slug}-{ep_02d}-vostfr/",
+            f"{base}/anime/{clean_slug}/{base_slug}-{ep_03d}-vostfr/",
+            f"{base}/anime/{clean_slug}/{clean_slug}-{ep_03d}-vostfr/",
+            f"{base}/anime/{clean_slug}/{ep_str}/",
+            f"{base}/anime/{clean_slug}/{ep_02d}/",
+            f"{base}/anime/{clean_slug}/{ep_03d}/",
+            f"{base}/anime/{clean_slug}/episode-{ep_str}/",
+            f"{base}/anime/{clean_slug}/episode-{ep_02d}/",
+            f"{base}/anime/{clean_slug}/episode-{ep_03d}/",
         ]
+
+        # Déduplication en conservant l'ordre
+        patterns: list[str] = []
+        for p in raw_patterns:
+            if p not in patterns:
+                patterns.append(p)
+        return patterns
 
     def _search_series_page_url(self, serie_name: str, trace: bool = False) -> Optional[str]:
         cache_key = self._series_cache_key(serie_name)
@@ -384,10 +423,32 @@ class VoirAnimeScraper(BaseScraper):
                 print(f"[trace] Using cached series page URL: {cached_url}")
             return cached_url
 
-        query_norm = self._normalize_for_match(serie_name)
         if self.browser_manager is None:
             return None
 
+        self._random_pause()
+        slug_candidate = self._slugify(serie_name)
+        base_url = getattr(self.config, "BASE_URL", "https://voir-anime.to").rstrip("/")
+
+        # Tentative directe avec le slug si disponible
+        if slug_candidate:
+            direct_url = f"{base_url}/anime/{slug_candidate}/"
+            try:
+                with self.browser_manager as bm:
+                    page = bm.get_page()
+                    timeout_ms = int(getattr(self.config, "TIMEOUT_SECONDS", 30)) * 1000
+                    bm.goto_with_retry(page, direct_url, timeout=timeout_ms)
+                    title = page.title().lower()
+                    if "404" not in title and "introuvable" not in title and "page non trouvée" not in title:
+                        if page.query_selector('a[href*="/anime/"]'):
+                            if trace:
+                                print(f"[trace] Direct slug match found: {direct_url}")
+                            self.cache.set(cache_key, direct_url, ttl_seconds=7 * 24 * 60 * 60)
+                            return direct_url
+            except Exception:
+                pass
+
+        query_norm = self._normalize_for_match(serie_name)
         try:
             with self.browser_manager as bm:
                 page = bm.get_page()
@@ -548,7 +609,25 @@ class VoirAnimeScraper(BaseScraper):
                     
                     # Attendre le chargement de la nouvelle page et des résultats
                     page.wait_for_load_state("domcontentloaded", timeout=15000)
-                    page.wait_for_selector('a[href*="/anime/"]', timeout=10000)
+                    
+                    try:
+                        page.wait_for_selector('a[href*="/anime/"]', timeout=5000)
+                    except Exception:
+                        logger.info("Première recherche vide (anti-bot check ?), tentative de 'double-tap'...")
+                        search_input_2 = page.locator('input[name="s"], input[type="search"], .search-field').first
+                        if search_input_2.is_visible():
+                            search_input_2.click()
+                            time.sleep(0.5)
+                            search_input_2.fill("") # Vider le champ
+                            time.sleep(0.5)
+                            search_input_2.press_sequentially(serie_name, delay=150)
+                            time.sleep(0.5)
+                            search_input_2.press("Enter")
+                            
+                            page.wait_for_load_state("domcontentloaded", timeout=15000)
+                            page.wait_for_selector('a[href*="/anime/"]', timeout=10000)
+                        else:
+                            raise Exception("Barre de recherche introuvable pour le double-tap")
                 except Exception as e:
                     # Fallback vers l'URL directe si la barre de recherche n'est pas trouvée
                     logger.debug(f"Échec de la recherche mimétique ({e}), utilisation de l'URL directe...")
@@ -598,6 +677,13 @@ class VoirAnimeScraper(BaseScraper):
         if self.browser_manager is None:
             return []
 
+        cache_key = f"ep_list:{self._slugify(serie)}:s{saison}"
+        cached_eps = self.cache.get(cache_key)
+        if isinstance(cached_eps, list) and cached_eps:
+            if trace:
+                print(f"[trace] Using cached episode list: {cached_eps}")
+            return cached_eps
+
         try:
             series_page_url = self._search_series_page_url(serie, trace=trace)
             if not series_page_url:
@@ -620,6 +706,12 @@ class VoirAnimeScraper(BaseScraper):
 
                 anchors = page.query_selector_all("a")
                 episodes = set()
+                clean_slug = slug.lower()
+                base_slug = clean_slug
+                for suffix in ("-vf", "-vostfr"):
+                    if base_slug.endswith(suffix):
+                        base_slug = base_slug[: -len(suffix)]
+                        break
 
                 for el in anchors:
                     try:
@@ -631,23 +723,24 @@ class VoirAnimeScraper(BaseScraper):
                         continue
 
                     episode_path = href
-                    anchor_prefix = f"/anime/{slug.lower()}/"
+                    anchor_prefix = f"/anime/{clean_slug}/"
                     if anchor_prefix in href:
                         episode_path = href.split(anchor_prefix, 1)[1]
 
-                    match = re.search(r"-(\d{1,4})-vf/?$", episode_path)
-                    if not match:
-                        match = re.search(r"-(\d{1,4})-vostfr/?$", episode_path)
-                    if not match:
-                        match = re.search(r"episode-(\d{1,4})/?$", episode_path)
-                    if not match:
-                        match = re.search(r"^(\d{1,4})/?$", episode_path)
+                    match = (
+                        re.search(r"-(\d{1,4})-(?:vf|vostfr)/?$", episode_path)
+                        or re.search(r"episode-(\d{1,4})/?$", episode_path)
+                        or re.search(r"^(\d{1,4})/?$", episode_path)
+                        or re.search(rf"{re.escape(base_slug)}-(\d{{1,4}})-(?:vf|vostfr)/?$", episode_path)
+                    )
 
                     if match:
                         ep = int(match.group(1))
                         episodes.add(ep)
 
                 sorted_eps = sorted(list(episodes))
+                if sorted_eps:
+                    self.cache.set(cache_key, sorted_eps, ttl_seconds=24 * 60 * 60)
                 if trace:
                     print(f"[trace] get_episodes_list: Épisodes trouvés: {sorted_eps}")
                 return sorted_eps
@@ -734,7 +827,7 @@ class VoirAnimeScraper(BaseScraper):
                     pass
 
                 def _human_pause() -> None:
-                    time.sleep(random.uniform(1.0, 3.0))
+                    self._random_pause()
 
                 for ep_url in patterns:
                     if trace:

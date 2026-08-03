@@ -79,6 +79,7 @@ class BrowserManager:
     locale: str = DEFAULT_LOCALE
     timezone_id: str = "Europe/Paris"
     extra_http_headers: dict[str, str] = field(default_factory=lambda: {"accept-language": DEFAULT_LOCALE})
+    proxy: Optional[dict[str, str] | str] = None
 
     playwright: Optional[Playwright] = field(init=False, default=None)
     browser: Optional[Browser] = field(init=False, default=None)
@@ -92,6 +93,13 @@ class BrowserManager:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.stop()
 
+    def _get_proxy_config(self) -> Optional[dict[str, str]]:
+        if not self.proxy:
+            return None
+        if isinstance(self.proxy, str):
+            return {"server": self.proxy}
+        return self.proxy
+
     def start(self) -> BrowserManager:
         """Démarre Playwright, le navigateur Chromium et le contexte par défaut."""
 
@@ -104,6 +112,16 @@ class BrowserManager:
         self._playwright_ctx = sync_playwright()
         self.playwright = self._playwright_ctx.__enter__()
 
+        proxy_cfg = self._get_proxy_config()
+        args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-infobars",
+            "--window-position=0,0",
+            "--ignore-certificate-errors",
+        ]
+
         if self.user_data_dir:
             import os
             os.makedirs(self.user_data_dir, exist_ok=True)
@@ -114,11 +132,17 @@ class BrowserManager:
                 viewport=self.viewport,
                 locale=self.locale,
                 timezone_id=self.timezone_id,
-                extra_http_headers=self.extra_http_headers
+                extra_http_headers=self.extra_http_headers,
+                proxy=proxy_cfg,
+                args=args,
             )
             self._inject_init_scripts(self.context)
         else:
-            self.browser = self.playwright.chromium.launch(headless=self.headless)
+            self.browser = self.playwright.chromium.launch(
+                headless=self.headless,
+                proxy=proxy_cfg,
+                args=args,
+            )
             self.context = self._create_context()
             
         logger.debug("Playwright démarré (headless=%s)", self.headless)
@@ -175,8 +199,10 @@ class BrowserManager:
         context.add_init_script(
             """
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr'] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr', 'en-US', 'en'] });
             Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            window.chrome = { runtime: {} };
             """
         )
 
@@ -202,8 +228,8 @@ class BrowserManager:
         try:
             from playwright_stealth import stealth_sync
             stealth_sync(page)
-        except ImportError:
-            logger.debug("playwright-stealth non installé, mode stealth désactivé")
+        except Exception:
+            logger.debug("playwright-stealth non disponible ou incompatible")
             
         return page
 
@@ -218,6 +244,22 @@ class BrowserManager:
 
         logger.debug("Navigation vers %s (timeout=%s)", url, timeout)
         page.goto(url, timeout=timeout)
+
+        # Attente passive si un challenge Cloudflare ou Turnstile est détecté
+        try:
+            import time
+            title = page.title().lower()
+            content = page.content().lower()
+            if any(term in title for term in ["just a moment...", "attention required", "cloudflare", "security check"]) or len(content.strip()) < 100:
+                logger.warning("Challenge anti-bot détecté sur %s. Attente passive de résolution...", url)
+                for _ in range(10):
+                    time.sleep(1)
+                    title = page.title().lower()
+                    if not any(term in title for term in ["just a moment...", "attention required", "security check"]):
+                        logger.info("Challenge franchi avec succès.")
+                        break
+        except Exception:
+            pass
 
     def close(self) -> None:
         """Alias de compatibilité pour `stop()`."""

@@ -42,6 +42,10 @@ class Config:
     ARIA2C_OPTS: str = "-x 16 -s 16"
     MAX_RETRIES: int = 3
     HEADLESS: bool = False
+    HTTP_PROXY: str = ""
+    HTTPS_PROXY: str = ""
+    REQUEST_DELAY_MIN: float = 1.0
+    REQUEST_DELAY_MAX: float = 2.5
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -90,6 +94,10 @@ class Config:
             aria2c_opts = os.getenv("ARIA2C_OPTS", _default("ARIA2C_OPTS", cls.ARIA2C_OPTS))  # type: ignore
             max_retries = int(os.getenv("MAX_RETRIES", str(_default("MAX_RETRIES", cls.MAX_RETRIES))))  # type: ignore
             headless = os.getenv("HEADLESS", str(_default("HEADLESS", cls.HEADLESS))).lower() in ("1", "true", "yes")  # type: ignore
+            http_proxy = os.getenv("HTTP_PROXY", _default("HTTP_PROXY", cls.HTTP_PROXY))  # type: ignore
+            https_proxy = os.getenv("HTTPS_PROXY", _default("HTTPS_PROXY", cls.HTTPS_PROXY))  # type: ignore
+            delay_min = float(os.getenv("REQUEST_DELAY_MIN", str(_default("REQUEST_DELAY_MIN", cls.REQUEST_DELAY_MIN))))  # type: ignore
+            delay_max = float(os.getenv("REQUEST_DELAY_MAX", str(_default("REQUEST_DELAY_MAX", cls.REQUEST_DELAY_MAX))))  # type: ignore
 
         except ValueError as exc:
             raise ConfigError(f"Erreur de parsing de la config: {exc}") from exc
@@ -108,6 +116,10 @@ class Config:
             ARIA2C_OPTS=aria2c_opts,
             MAX_RETRIES=max_retries,
             HEADLESS=headless,
+            HTTP_PROXY=http_proxy,
+            HTTPS_PROXY=https_proxy,
+            REQUEST_DELAY_MIN=delay_min,
+            REQUEST_DELAY_MAX=delay_max,
         )
 
         # validations simples
@@ -132,6 +144,10 @@ class Config:
             "LOG_JSON": str(self.LOG_JSON),
             "ARIA2C_OPTS": self.ARIA2C_OPTS,
             "MAX_RETRIES": str(self.MAX_RETRIES),
+            "HTTP_PROXY": self.HTTP_PROXY,
+            "HTTPS_PROXY": self.HTTPS_PROXY,
+            "REQUEST_DELAY_MIN": str(self.REQUEST_DELAY_MIN),
+            "REQUEST_DELAY_MAX": str(self.REQUEST_DELAY_MAX),
         }
 
     def save_to_env(self, path: Path) -> None:
