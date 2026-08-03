@@ -293,6 +293,13 @@ if HAS_TYPER:
             if res.returncode == 0:
                 console.print("[bold green]Mise à jour réussie ![/bold green]")
             else:
+                # Tente une réinstallation si le dossier du projet a été déplacé ou renommé
+                if Path("pyproject.toml").exists():
+                    console.print("[yellow]Tentative de synchronisation pipx avec le dossier courant...[/yellow]")
+                    res_reinstall = subprocess.run(["pipx", "install", "-e", ".", "--force"])
+                    if res_reinstall.returncode == 0:
+                        console.print("[bold green]✔ Synchronisation et mise à jour réussies ![/bold green]")
+                        return
                 console.print("[bold red]Erreur lors de la mise à jour via pipx.[/bold red]")
         else:
             res = subprocess.run(["git", "pull"])
