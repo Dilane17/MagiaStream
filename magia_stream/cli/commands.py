@@ -84,11 +84,11 @@ if HAS_TYPER:
         proxy: Optional[str] = typer.Option(None, "--proxy", help="URL du serveur proxy (ex: http://127.0.0.1:8080)."),
         delay: Optional[float] = typer.Option(None, "--delay", help="Délai moyen en secondes entre les requêtes (ex: 2.0)."),
     ) -> None:
-        cfg: Config = ctx.obj or Config.from_env()
-        if proxy:
+        cfg: Config = getattr(ctx, "obj", None) or Config.from_env()
+        if proxy and isinstance(proxy, str):
             cfg.HTTP_PROXY = proxy
             cfg.HTTPS_PROXY = proxy
-        if delay and delay > 0:
+        if isinstance(delay, (int, float)) and delay > 0:
             cfg.REQUEST_DELAY_MIN = max(0.5, delay * 0.8)
             cfg.REQUEST_DELAY_MAX = delay * 1.3
 
@@ -191,8 +191,8 @@ if HAS_TYPER:
         saison: int = typer.Option(1, "--saison", help="Numéro de la saison."),
         proxy: Optional[str] = typer.Option(None, "--proxy", help="URL du serveur proxy."),
     ) -> None:
-        cfg: Config = ctx.obj or Config.from_env()
-        if proxy:
+        cfg: Config = getattr(ctx, "obj", None) or Config.from_env()
+        if proxy and isinstance(proxy, str):
             cfg.HTTP_PROXY = proxy
             cfg.HTTPS_PROXY = proxy
 

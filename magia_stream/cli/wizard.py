@@ -103,4 +103,6 @@ def run_interactive_wizard(cfg: Any, download_fn: Any) -> None:
         resolution=resolution,
         dry_run=False,
         trace=False,
+        proxy=None,
+        delay=None,
     )
