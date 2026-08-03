@@ -28,5 +28,17 @@ class VoirAnimePatternsTests(unittest.TestCase):
         self.assertEqual(scraper.config.HTTP_PROXY, "http://proxy.local:8080")
 
 
+    def test_score_autocomplete_result(self) -> None:
+        scraper = VoirAnimeScraper(config=Config())
+        score_official = scraper._score_autocomplete_result("bleach", "Bleach (VF)", "bleach-vf")
+        score_kai = scraper._score_autocomplete_result("bleach", "Bleach Kai (VF)", "bleach-kai-vf")
+        score_movie = scraper._score_autocomplete_result("bleach", "Bleach Film 1", "bleach-memories-of-nobody-vf")
+
+        # La série officielle doit avoir le score le plus élevé (Match exact / Priorité absolue)
+        self.assertGreater(score_official, score_kai)
+        self.assertGreater(score_official, score_movie)
+        self.assertEqual(score_official, 100)
+
+
 if __name__ == "__main__":
     unittest.main()

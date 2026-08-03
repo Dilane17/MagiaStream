@@ -118,6 +118,124 @@ class VoirAnimeScraper(BaseScraper):
             return None
         return None
 
+    def _score_autocomplete_result(self, search_term: str, title: str, slug: str) -> int:
+        query_norm = self._normalize_for_match(search_term)
+        title_norm = self._normalize_for_match(title)
+        slug_norm = (slug or "").lower()
+
+        # Match exact sur le slug ou le titre
+        if query_norm == slug_norm or query_norm == title_norm or f"{query_norm}-vf" == slug_norm or f"{query_norm}-vostfr" == slug_norm:
+            return 100
+
+        # Termes modificateurs indiquant un spin-off, film ou version courte
+        modifiers = ["kai", "sennen", "film", "movie", "ova", "special"]
+        has_modifier = any(m in title_norm or m in slug_norm for m in modifiers)
+
+        if title_norm.startswith(query_norm) and not has_modifier:
+            return 90
+
+        if query_norm in title_norm and not has_modifier:
+            return 80
+
+        if has_modifier:
+            return 50
+
+        return 40
+
+    def _capture_autocomplete_results(self, page: Any, search_term: str, trace: bool = False) -> list[dict[str, Any]]:
+        captured_items: list[dict[str, Any]] = []
+
+        def _parse_and_add(url: str, title: str):
+            if not url:
+                return
+            clean_url = url.strip("'\" \t\r\n")
+            slug = self._extract_slug_from_page_url(clean_url)
+            if not slug:
+                return
+            clean_title = re.sub(r'<[^>]+>', '', title or "").strip()
+            if not clean_title or len(clean_title) < 2:
+                clean_title = slug.replace("-", " ").title()
+            score = self._score_autocomplete_result(search_term, clean_title, slug)
+            if not any(item["slug"] == slug for item in captured_items):
+                captured_items.append({
+                    "title": clean_title,
+                    "url": clean_url,
+                    "slug": slug,
+                    "score": score
+                })
+
+        def _on_ajax_response(resp):
+            try:
+                url = resp.url
+                if ("admin-ajax.php" in url or "action=" in url or "search" in url) and resp.status == 200:
+                    try:
+                        content_type = resp.headers.get("content-type", "").lower()
+                        text_body = resp.text()
+                    except Exception:
+                        return
+                    if not text_body:
+                        return
+                    if "json" in content_type:
+                        try:
+                            json_data = resp.json()
+                            if isinstance(json_data, dict):
+                                data_items = json_data.get("data", []) or json_data.get("suggestions", [])
+                                if isinstance(data_items, list):
+                                    for item in data_items:
+                                        if isinstance(item, dict):
+                                            u = item.get("url") or item.get("link") or item.get("value")
+                                            t = item.get("title") or item.get("label") or item.get("name")
+                                            if u and t:
+                                                _parse_and_add(u, t)
+                        except Exception:
+                            pass
+                    matches = re.findall(r'href=[\"dir\']*([^\">]+/anime/[^\">]+)[\"dir\']*[^>]*>([^<]+)<', text_body)
+                    for link, name in matches:
+                        _parse_and_add(link, name)
+            except Exception:
+                pass
+
+        try:
+            page.on("response", _on_ajax_response)
+        except Exception:
+            pass
+
+        search_inputs = page.locator('input[name="phrase"], input.orig, input[name="s"], input[type="search"], .search-field, input[placeholder*="Rechercher"]').all()
+        target_input = None
+        for inp in search_inputs:
+            try:
+                if inp.is_visible():
+                    target_input = inp
+                    break
+            except Exception:
+                continue
+
+        if target_input:
+            try:
+                target_input.click()
+                time.sleep(0.3)
+                target_input.fill("")
+                time.sleep(0.3)
+                target_input.press_sequentially(search_term, delay=120)
+                time.sleep(2.0)
+
+                popup_anchors = page.query_selector_all('.asp_results a[href*="/anime/"], .asp_r a[href*="/anime/"], .search-live a[href*="/anime/"], .search-popup a[href*="/anime/"], .ajax-search-results a[href*="/anime/"], div[class*="asp_"] a[href*="/anime/"]')
+                for anchor in popup_anchors:
+                    try:
+                        u = anchor.get_attribute("href")
+                        t = anchor.inner_text()
+                        if u and t:
+                            _parse_and_add(u, t)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        captured_items.sort(key=lambda x: x["score"], reverse=True)
+        if trace:
+            print(f"[trace] Captured {len(captured_items)} autocomplete items for '{search_term}': {captured_items}")
+        return captured_items
+
     @staticmethod
     def _resolution_height(resolution: Optional[str]) -> Optional[int]:
         if not resolution:
@@ -472,14 +590,15 @@ class VoirAnimeScraper(BaseScraper):
 
                 timeout_ms = int(getattr(self.config, "TIMEOUT_SECONDS", 30)) * 1000
                 bm.goto_with_retry(page, getattr(self.config, "BASE_URL", "https://voir-anime.to"), timeout=timeout_ms)
+                time.sleep(1.5)
 
-                search_selectors = [
-                    'input[name="s"]',
-                    'input[type="search"]',
-                    'input[placeholder*="recherche"]',
-                    'input[placeholder*="Rechercher"]',
-                    'input[placeholder*="search"]',
-                ]
+                autocompleted = self._capture_autocomplete_results(page, serie_name, trace=trace)
+                if autocompleted and autocompleted[0]["score"] >= 80:
+                    best_url = autocompleted[0]["url"]
+                    if trace:
+                        print(f"[trace] Autocomplete top match ({autocompleted[0]['score']}): {best_url}")
+                    self.cache.set(cache_key, best_url, ttl_seconds=7 * 24 * 60 * 60)
+                    return best_url
                 search_selector = None
                 for selector in search_selectors:
                     try:
@@ -586,65 +705,39 @@ class VoirAnimeScraper(BaseScraper):
                 timeout_ms = 30000
                 base_url = getattr(self.config, "BASE_URL", "https://voir-anime.to").rstrip("/")
 
-                import time
-                from urllib.parse import quote_plus
-
-                # Simuler un comportement humain pour éviter la détection (Silent Drop/Shadow Ban)
                 bm.goto_with_retry(page, base_url, timeout=timeout_ms)
-                
+                time.sleep(1.5)
+
+                # Tentative d'interception d'autocomplétion en priorité
+                autocompleted = self._capture_autocomplete_results(page, serie_name, trace=trace)
+                if autocompleted:
+                    if trace:
+                        print(f"[trace] Autocomplete returned {len(autocompleted)} prioritized results")
+                    return autocompleted
+
+                # Fallback : Soumission du formulaire pour la page complète
                 try:
-                    # Laisser le temps à Cloudflare/Wordfence de valider la page d'accueil
-                    time.sleep(2)
-                    
-                    # Chercher la barre de recherche (standard WordPress ou champ de recherche générique)
                     search_input = page.locator('input[name="s"], input[type="search"], .search-field').first
-                    search_input.wait_for(state="visible", timeout=5000)
-                    
-                    search_input.click()
-                    time.sleep(0.5)
-                    # Taper lentement comme un humain (150ms entre chaque touche)
-                    search_input.press_sequentially(serie_name, delay=150)
-                    time.sleep(0.5)
-                    search_input.press("Enter")
-                    
-                    # Attendre le chargement de la nouvelle page et des résultats
-                    page.wait_for_load_state("domcontentloaded", timeout=15000)
-                    
-                    try:
-                        page.wait_for_selector('a[href*="/anime/"]', timeout=5000)
-                    except Exception:
-                        logger.info("Première recherche vide (anti-bot check ?), tentative de 'double-tap'...")
-                        search_input_2 = page.locator('input[name="s"], input[type="search"], .search-field').first
-                        if search_input_2.is_visible():
-                            search_input_2.click()
-                            time.sleep(0.5)
-                            search_input_2.fill("") # Vider le champ
-                            time.sleep(0.5)
-                            search_input_2.press_sequentially(serie_name, delay=150)
-                            time.sleep(0.5)
-                            search_input_2.press("Enter")
-                            
-                            page.wait_for_load_state("domcontentloaded", timeout=15000)
-                            page.wait_for_selector('a[href*="/anime/"]', timeout=10000)
-                        else:
-                            raise Exception("Barre de recherche introuvable pour le double-tap")
+                    if search_input.is_visible():
+                        search_input.click()
+                        time.sleep(0.3)
+                        search_input.press("Enter")
+                        page.wait_for_load_state("domcontentloaded", timeout=15000)
+                        try:
+                            page.wait_for_selector('a[href*="/anime/"]', timeout=5000)
+                        except Exception:
+                            pass
                 except Exception as e:
-                    # Fallback vers l'URL directe si la barre de recherche n'est pas trouvée
-                    logger.debug(f"Échec de la recherche mimétique ({e}), utilisation de l'URL directe...")
+                    logger.debug(f"Échec de la validation de recherche ({e}), utilisation de l'URL directe...")
                     query = quote_plus(serie_name)
                     search_url = f"{base_url}/?s={query}"
                     bm.goto_with_retry(page, search_url, timeout=timeout_ms)
-                    
                     try:
                         page.wait_for_selector('a[href*="/anime/"]', timeout=10000)
                     except Exception:
                         pass
 
-
                 results: list[dict[str, str]] = []
-
-                # The search results page contains multiple links to anime.
-                # We extract all of them and filter out short texts (like 'VF', '12', etc).
                 anchors = page.query_selector_all('a[href*="/anime/"]')
                 for anchor in anchors:
                     try:
@@ -653,19 +746,26 @@ class VoirAnimeScraper(BaseScraper):
 
                         if href and text:
                             slug = self._extract_slug_from_page_url(href)
-                            # Remove weird newlines or numbers from text
-                            # We filter out very short texts which are usually episode numbers or standalone "VF" tags
                             if slug and len(text) > 3 and slug.lower() in href.lower():
-                                # We only add if it's unique by slug
                                 if not any(r["slug"] == slug for r in results):
-                                    clean_title = text.split("\n")[0].strip()
-                                    results.append({"title": clean_title, "url": href, "slug": slug})
+                                    score = self._score_autocomplete_result(serie_name, text, slug)
+                                    results.append({
+                                        "title": text.split("\n")[0].strip(),
+                                        "url": href,
+                                        "slug": slug,
+                                        "score": score
+                                    })
                     except Exception:
                         continue
 
+                results.sort(key=lambda x: x.get("score", 0), reverse=True)
                 return results
         except Exception:
-            return []
+            logger.debug("Browser unavailable during series page search", exc_info=True)
+
+        return []
+
+
 
     def _search_series_slug(self, serie_name: str, trace: bool = False) -> Optional[str]:
         page_url = self._search_series_page_url(serie_name, trace=trace)

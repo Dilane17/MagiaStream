@@ -1,4 +1,4 @@
-2026/08/03-17:03:49.466 9507 Reusing MANIFEST /home/dylankode/Mes Projets/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/MANIFEST-000001
-2026/08/03-17:03:49.471 9507 Recovering log #3
-2026/08/03-17:03:49.471 9507 (ignoring error) /home/dylankode/Mes Projets/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/000003.log: dropping 7753 bytes; Corruption: checksum mismatch
-2026/08/03-17:03:49.472 9507 Reusing old log /home/dylankode/Mes Projets/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/000003.log 
+2026/08/03-18:25:05.623 beab Reusing MANIFEST /home/dylankode/Mes Projets/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/MANIFEST-000001
+2026/08/03-18:25:05.631 beab Recovering log #3
+2026/08/03-18:25:05.631 beab (ignoring error) /home/dylankode/Mes Projets/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/000003.log: dropping 8099 bytes; Corruption: checksum mismatch
+2026/08/03-18:25:05.631 beab Reusing old log /home/dylankode/Mes Projets/MagiaStream/.playwright_profile/Default/Local Storage/leveldb/000003.log 
