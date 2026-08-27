@@ -72,7 +72,7 @@ class BrowserManager:
     ```
     """
 
-    headless: bool = True 
+    headless: bool = False
     user_agent: str = DEFAULT_USER_AGENT
     user_data_dir: Optional[str] = None
     viewport: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_VIEWPORT))
